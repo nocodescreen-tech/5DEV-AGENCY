@@ -26,16 +26,22 @@ pas de jeton lisible par un script.
 **Conséquences** : table de sessions + purge périodique ; API et front sur le même domaine
 ou configuration CORS/credentials explicite.
 
-## ADR-003 — Stockage médias S3-compatible (R2) avec URLs signées
+## ADR-003 — Stockage médias : Cloudinary en V1, R2/S3 en repli
 
-**Statut** : proposed · 05/11/2026
-**Contexte** : photo de mariage/portrait = données personnelles ; le service doit pouvoir
-afficher des miniatures sans rendre les originaux publics.
-**Options** : (a) Cloudinary (transformation intégrée, coût à l'usage) ;
-(b) S3-compatible (R2) + dérivés générés côté serveur.
-**Décision proposée** : (b) — bucket privé, URLs signées HMAC, dérivés 400/900/1600 générés
-à l'upload, cache `immutable`. Cloudinary reste possible plus tard pour la vidéo.
-**Conséquences** : génération d'images côté serveur (sharp) à maintenir ; dépendance à R2.
+**Statut** : accepted · 05/11/2026 (validé par le responsable du projet : identifiants fournis)
+**Contexte** : photo de mariage/portrait = données personnelles ; le service doit afficher des
+miniatures sans rendre les originaux publics. Un compte Cloudinary opérationnel a été fourni
+(clés reprises du projet hubcommerce) ; le cahier des charges autorise « Cloudinary ou S3 ».
+**Options** : (a) Cloudinary (transformations et dérivés gérés, quota gratuit mensuel) ;
+(b) S3-compatible (R2) + dérivés générés côté serveur (sharp).
+**Décision** : **(a) Cloudinary pour la V1** — les identifiants existent déjà, ce qui supprime
+la génération d'images côté serveur et une dépendance à maintenir. Les originales restent
+privées : les URLs d'affichage sont signées et à expiration courte.
+(b) reste implémenté comme **repli** (variables `S3_*` déjà présentes dans `.env.example`) si le
+quota Cloudinary devient contraignant ou si le client exige un stockage souverain.
+**Conséquences** : dépendance à un fournisseur externe (quota, conditions d'usage à surveiller) ;
+pas de miniatures à générer nous-mêmes ; migration R2 possible car la couche média est isolée
+derrière un service (`media.service`).
 
 ## ADR-004 — Taux de change administrable, historisé, figé à l'émission
 

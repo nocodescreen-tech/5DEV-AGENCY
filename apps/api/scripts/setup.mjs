@@ -169,7 +169,9 @@ await client.connect();
 // 1. schéma
 const schema = readFileSync(join(here, '../src/db/schema.sql'), 'utf8');
 await client.query(schema);
-console.log('✓ schéma appliqué');
+const eco = readFileSync(join(here, '../src/db/schema-ecosystem.sql'), 'utf8');
+await client.query(eco);
+console.log('✓ schéma appliqué (base + écosystème)');
 
 // 2. compte propriétaire
 const email = process.env.ADMIN_EMAIL ?? 'admin@5dev.com';
@@ -233,6 +235,24 @@ for (const [i, pole] of POLES.entries()) {
   }
 }
 console.log(`✓ catalogue : ${cats} pôles, ${svcs} nouveaux services`);
+
+// 5. automatisation par défaut (qualification IA des demandes)
+const auto = await client.query("select id from automations where name = 'Qualification des demandes'");
+if (auto.rowCount === 0) {
+  await client.query(
+    "insert into automations(name, trigger, conditions, actions, is_active) values($1,'lead.created','[]'::jsonb,$2::jsonb,true)",
+    [
+      'Qualification des demandes',
+      JSON.stringify([
+        { type: 'ai_classify' },
+        { type: 'notify_admin', title: 'Nouvelle demande reçue', body: 'Une demande vient d arriver sur le site.' },
+      ]),
+    ],
+  );
+  console.log('OK automatisation « Qualification des demandes » creee');
+} else {
+  console.log('- automatisation deja presente');
+}
 
 await client.end();
 console.log('\nBase prête. Démarrez : npm run dev:api');

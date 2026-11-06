@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { all, one } from '../db/index.js';
 import { AppError } from '../middlewares/errors.js';
 import { rateLimit, requireAdmin, validate } from '../middlewares/auth.js';
+import { runAutomations } from './automation.js';
 
 /* ---------------------------------------------------------------- demandes */
 
@@ -44,6 +45,19 @@ leadsRouter.post(
           l.message,
         ],
       );
+      // automatisations : exécutées hors du chemin de réponse
+      if (row) {
+        void runAutomations('lead.created', {
+          id: row.id,
+          kind: l.kind,
+          contact_name: l.contact_name,
+          contact_email: l.contact_email,
+          contact_phone: l.contact_phone ?? '',
+          message: l.message,
+          budget_amount: l.budget_amount ?? null,
+          budget_currency: l.budget_currency,
+        }).catch(() => null);
+      }
       res.status(201).json({ ok: true, data: { reference: row?.id.slice(0, 8).toUpperCase() } });
     } catch (err) {
       next(err);
@@ -175,6 +189,17 @@ bookingsRouter.post(
           b.notes || null,
         ],
       );
+      if (row) {
+        void runAutomations('booking.created', {
+          id: row.id,
+          full_name: b.full_name,
+          email: b.email,
+          phone: b.phone ?? '',
+          shoot_date: b.shoot_date,
+          slot: b.slot,
+          notes: b.notes ?? '',
+        }).catch(() => null);
+      }
       res.status(201).json({ ok: true, data: { reference: row?.id.slice(0, 8).toUpperCase() } });
     } catch (err) {
       next(err);

@@ -15,6 +15,10 @@ import AdminBookings from './pages/admin/AdminBookings';
 import AdminServices from './pages/admin/AdminServices';
 import AdminProjects from './pages/admin/AdminProjects';
 import AdminSettings from './pages/admin/AdminSettings';
+import AdminAI from './pages/admin/AdminAI';
+import AdminEmails from './pages/admin/AdminEmails';
+import AdminNewsletter from './pages/admin/AdminNewsletter';
+import AdminAutomations from './pages/admin/AdminAutomations';
 
 function NotFound() {
   return (
@@ -54,6 +58,10 @@ export default function App() {
         <Route path="services" element={<AdminServices />} />
         <Route path="realisations" element={<AdminProjects />} />
         <Route path="reglages" element={<AdminSettings />} />
+        <Route path="ia" element={<AdminAI />} />
+        <Route path="emails" element={<AdminEmails />} />
+        <Route path="newsletter" element={<AdminNewsletter />} />
+        <Route path="automatisations" element={<AdminAutomations />} />
       </Route>
     </Routes>
   );

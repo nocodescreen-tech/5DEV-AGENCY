@@ -6,7 +6,7 @@ export const dashboardRouter: Router = Router();
 
 dashboardRouter.get('/admin/dashboard', requireAdmin, async (_req, res, next) => {
   try {
-    const [leads, bookings, catalog, activity] = await Promise.all([
+    const [leads, bookings, catalog, activity, series] = await Promise.all([
       one<Record<string, number>>(
         `select count(*) filter (where status = 'new')::int as nouvelles,
                 count(*) filter (where status = 'in_progress')::int as en_cours,
@@ -31,9 +31,19 @@ dashboardRouter.get('/admin/dashboard', requireAdmin, async (_req, res, next) =>
          (select 'booking' as type, id::text, full_name as label, status, created_at from bookings order by created_at desc limit 5)
          order by created_at desc limit 8`,
       ),
+      // série réelle des 14 derniers jours (demandes + réservations)
+      all(
+        `with jours as (
+           select generate_series(current_date - interval '13 days', current_date, interval '1 day')::date as jour
+         )
+         select to_char(j.jour,'YYYY-MM-DD') as jour,
+                (select count(*) from leads l where l.created_at::date = j.jour)::int as demandes,
+                (select count(*) from bookings b where b.created_at::date = j.jour)::int as reservations
+           from jours j order by j.jour`,
+      ),
     ]);
 
-    res.json({ ok: true, data: { leads, bookings, catalog, activity } });
+    res.json({ ok: true, data: { leads, bookings, catalog, activity, series } });
   } catch (err) {
     next(err);
   }

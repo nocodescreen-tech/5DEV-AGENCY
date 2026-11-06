@@ -5,6 +5,11 @@ import { authRouter } from './modules/auth.js';
 import { catalogRouter } from './modules/catalog.js';
 import { bookingsRouter, leadsRouter } from './modules/intake.js';
 import { dashboardRouter } from './modules/dashboard.js';
+import { aiRouter } from './modules/ai/routes.js';
+import { emailRouter } from './modules/email.js';
+import { newsletterRouter } from './modules/newsletter.js';
+import { automationRouter } from './modules/automation.js';
+import { prefsRouter } from './modules/prefs.js';
 import { errorHandler, notFound } from './middlewares/errors.js';
 import { currentUser } from './lib/session.js';
 
@@ -42,6 +47,11 @@ export function createApp(): Express {
   app.use('/api/v1', leadsRouter);
   app.use('/api/v1', bookingsRouter);
   app.use('/api/v1', dashboardRouter);
+  app.use('/api/v1', aiRouter);
+  app.use('/api/v1', emailRouter);
+  app.use('/api/v1', newsletterRouter);
+  app.use('/api/v1', automationRouter);
+  app.use('/api/v1', prefsRouter);
   app.use(healthRouter); // /healthz à la racine pour les sondes d'hébergeur
 
   app.use(notFound);

@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowUpRight, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { apiGet } from '../lib/api';
+import NewsletterForm from './NewsletterForm';
+import ThemeToggle from './ThemeToggle';
 import type { Settings } from '../lib/types';
 
 const NAV = [
@@ -54,6 +56,10 @@ export default function SiteLayout() {
               Demander un devis
             </Link>
           </nav>
+
+          <div className="hidden items-center gap-2 md:flex">
+            <ThemeToggle compact />
+          </div>
 
           <button
             type="button"
@@ -148,6 +154,7 @@ export default function SiteLayout() {
             <Link to="/devis" className="inline-flex items-center gap-2 text-sm text-brand">
               Décrire mon projet <ArrowUpRight className="size-4" />
             </Link>
+            <NewsletterForm />
             <Link to="/admin" className="mt-4 block text-xs text-white/35 hover:text-white/60">
               Espace administration
             </Link>

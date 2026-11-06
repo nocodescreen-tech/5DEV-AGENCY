@@ -100,3 +100,74 @@
 .overlay-dark {
   background: linear-gradient(180deg, rgba(23, 23, 23, 0.15) 0%, rgba(23, 23, 23, 0.85) 100%);
 }
+
+/* ============================================================ thèmes ==== */
+/* Le clair est la référence (identité 5DEV). Le sombre reprend les mêmes
+   rôles avec des valeurs inversées, sans changer la structure des composants. */
+:root {
+  --paper: #ffffff;
+  --wash-tone: #faf8f5;
+  --surface: #ffffff;
+  --ink-tone: #171717;
+  --line-tone: #e6e2dd;
+  --muted-tone: #6b6b6b;
+}
+
+[data-theme='dark'] {
+  --paper: #0b0b0d;
+  --wash-tone: #121214;
+  --surface: #171719;
+  --ink-tone: #f2f1ee;
+  --line-tone: #2a2a2e;
+  --muted-tone: #9a9a a0;
+  --muted-tone: #9a9aa0;
+}
+
+[data-theme='dark'] body {
+  background: var(--paper);
+  color: var(--ink-tone);
+}
+
+/* surfaces */
+[data-theme='dark'] .bg-paper { background-color: var(--paper); }
+[data-theme='dark'] .bg-wash { background-color: var(--wash-tone); }
+[data-theme='dark'] .bg-white { background-color: var(--surface); }
+
+/* textes */
+[data-theme='dark'] .text-ink { color: var(--ink-tone); }
+[data-theme='dark'] .text-ink\/60,
+[data-theme='dark'] .text-ink\/65,
+[data-theme='dark'] .text-ink\/70,
+[data-theme='dark'] .text-ink\/75,
+[data-theme='dark'] .text-ink\/80 { color: rgb(242 241 238 / 0.72); }
+[data-theme='dark'] .text-muted { color: var(--muted-tone); }
+
+/* lignes et fonds discrets */
+[data-theme='dark'] .border-line { border-color: var(--line-tone); }
+[data-theme='dark'] .divide-line > :not([hidden]) ~ :not([hidden]) { border-color: var(--line-tone); }
+[data-theme='dark'] .bg-line { background-color: var(--line-tone); }
+[data-theme='dark'] .field {
+  background: #121214;
+  border-color: var(--line-tone);
+  color: var(--ink-tone);
+}
+[data-theme='dark'] .card { background: var(--surface); border-color: var(--line-tone); }
+[data-theme='dark'] .btn-ghost { border-color: rgb(242 241 238 / 0.2); color: var(--ink-tone); }
+
+/* densité */
+[data-densité='compact'] { --space-scale: 0.85; }
+[data-density='compact'] .card { padding: 0.9rem; }
+[data-density='compact'] .container-x { padding-top: 0.5rem; }
+
+/* transitions de thème (désactivées si l'utilisateur refuse le mouvement) */
+@media (prefers-reduced-motion: no-preference) {
+  body,
+  .card,
+  .field,
+  header,
+  footer,
+  aside,
+  nav {
+    transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+  }
+}

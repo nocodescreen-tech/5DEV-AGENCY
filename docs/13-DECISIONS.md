@@ -71,9 +71,24 @@ virement) avec reçus générés ; le paiement en ligne arrive après validation
 **Conséquences** : la table `payments` est prévue pour un `provider_reference` afin de brancher
 un PSP plus tard sans migration lourde.
 
+## ADR-007 — Tailwind **v3** + PostCSS dans `vite.config.ts` (et non le plugin v4)
+
+**Statut** : accepted · 05/11/2026 — décision d'exécution du lot 1
+**Contexte** : le plugin `@tailwindcss/vite` v4 échoue sur ce poste
+(`Cannot convert undefined or null to object` puis, en dépendance, `jiti` introuvable
+lors du chargement de `postcss.config.js`). Le temps perdu sur l'outillage ne doit pas
+retarder le squelette.
+**Options** : (a) forcer Tailwind v4 + réparer jiti ; (b) Tailwind v3 + PostCSS déclaré
+directement dans `vite.config.ts`.
+**Décision** : (b). v3 est stable, documenté, sans binaire natif ; les plugins PostCSS sont
+chargés par Vite (aucune résolution de config via jiti, donc aucun piège d'outillage).
+**Conséquences** : la syntaxe `@theme` de v4 n'est pas disponible ; les tokens vivent en
+variables CSS (`:root`) + `theme.extend` de `tailwind.config.js`. Le passage à v4 reste
+possible au lot 3 si l'outillage est sain — la migration est locale (config + CSS).
+
 ---
 
-## Décisions ouvertes à trancher avant le lot 1
+## Décisions ouvertes avant le lot 2
 
 | # | Question | Impact |
 |---|---|---|

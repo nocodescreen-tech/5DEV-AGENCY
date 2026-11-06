@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tokens provisoires du lot 1 — la direction artistique définitive (Nebula)
+   remplacera ces valeurs dans docs/03-DESIGN-SYSTEM.md. */
+:root {
+  --ink: #050505;
+  --ink-2: #0d0d0f;
+  --line: #1e1e22;
+  --chalk: #f4f4f2;
+  --mute: #9a9aa0;
+  --signal: #00cfc8;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--chalk);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--signal);
+    color: var(--ink);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

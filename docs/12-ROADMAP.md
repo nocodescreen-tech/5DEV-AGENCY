@@ -6,9 +6,9 @@ Aucun lot ne démarre avant que le précédent soit vérifié (sauf fondations p
 ## Lot 0 — Fondations documentaires (EN COURS)
 
 Livrables : `README.md`, `AGENTS.md`, `docs/00`, `01`, `04`, `05`, `10`, `12`, `13`, `.env.example`.
-Critères : [x] dépôt décrit · [x] stack arrêtée · [ ] hébergement validé par le client · [ ] 3 décisions ouvertes tranchées.
+Critères : [x] dépôt décrit · [x] stack arrêtée · [ ] hébergement (reporté à la demande du client) · [ ] direction artistique (lot 3).
 
-## Lot 1 — Squelette exécutable
+## Lot 1 — Squelette exécutable — ✅ fait (05/11/2026)
 
 Monorepo `apps/web` + `apps/api` + `packages/shared`, TypeScript strict, lint, format,
 `npm run verify` (typecheck + lint + tests) qui échoue si une erreur apparaît.
@@ -73,7 +73,7 @@ Le tableau ci-dessous est la source de vérité de l'avancement (à tenir à jou
 | Lot | État | Date | Preuve |
 |---|---|---|---|
 | 0 Fondations | en cours | 05/11/2026 | ce dossier |
-| 1 Squelette | à faire | — | — |
+| 1 Squelette | **fait** | 05/11/2026 | `npm run verify` (7 tests), `/healthz` = base up, capture 1440 px, build prod 103 Ko gzip |
 | 2 Données & admin | à faire | — | — |
 | 3 Site public | à faire | — | — |
 | 4 Devis & contact | à faire | — | — |

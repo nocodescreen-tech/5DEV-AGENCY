@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { AppError } from './errors.js';
 import { currentUser } from '../lib/session.js';
 import type { SessionUser } from '../lib/session.js';

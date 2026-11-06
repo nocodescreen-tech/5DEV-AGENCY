@@ -245,11 +245,21 @@ workspacePlanRouter.post('/admin/pm/templates/:id/duplicate', requireAdmin, asyn
       [String(req.params.id)],
     );
     if (!src) throw new AppError(404, 'NOT_FOUND', 'Modèle introuvable.');
-    const row = await one(
-      `insert into project_templates(name, description, category, stages)
-       values($1,$2,$3,$4::jsonb) returning *`,
-      [`${src.name} (copie)`, src.description, src.category, JSON.stringify(src.stages)],
-    );
+
+    // le nom est unique : on cherche le premier suffixe libre (copie, copie 2, copie 3…)
+    let created: { id: string } | null = null;
+    for (let i = 1; i <= 20 && !created; i++) {
+      const name = i === 1 ? `${src.name} (copie)` : `${src.name} (copie ${i})`;
+      created = await one<{ id: string }>(
+        `insert into project_templates(name, description, category, stages)
+         values($1,$2,$3,$4::jsonb)
+         on conflict (name) do nothing
+         returning id`,
+        [name, src.description, src.category, JSON.stringify(src.stages)],
+      );
+    }
+    if (!created) throw new AppError(409, 'NAME_TAKEN', 'Trop de copies portent déjà ce nom.');
+    const row = await one(`select * from project_templates where id=$1`, [created.id]);
     res.status(201).json({ ok: true, data: row });
   } catch (err) {
     next(err);

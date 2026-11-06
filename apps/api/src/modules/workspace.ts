@@ -64,10 +64,20 @@ async function projectProgress(projectId: string): Promise<number> {
   return Number(row?.progress ?? 0);
 }
 
+/**
+ * Référence PRJ-AAAA-NNN : calculée sur le **maximum existant**, jamais sur un comptage
+ * (supprimer un projet faisait auparavant réutiliser une référence déjà prise → violation
+ * d'unicité). La course entre deux créations simultanées est absorbée par un retry.
+ */
 async function nextReference(): Promise<string> {
-  const row = await one<{ n: number }>(`select count(*)::int as n from projects_pm`);
   const year = new Date().getFullYear();
-  return `PRJ-${year}-${String((row?.n ?? 0) + 1).padStart(3, '0')}`;
+  const row = await one<{ n: number }>(
+    `select coalesce(max(nullif(regexp_replace(reference, '^PRJ-[0-9]{4}-', ''), '')::int), 0) as n
+       from projects_pm
+      where reference like $1`,
+    [`PRJ-${year}-%`],
+  );
+  return `PRJ-${year}-${String(Number(row?.n ?? 0) + 1).padStart(3, '0')}`;
 }
 
 /* ------------------------------------------------------------- vue générale */
@@ -156,9 +166,12 @@ workspaceRouter.get('/admin/pm/projects', requireAdmin, async (req, res, next) =
 workspaceRouter.post('/admin/pm/projects', requireAdmin, validate(projectSchema), async (req, res, next) => {
   try {
     const p = req.body as z.infer<typeof projectSchema>;
-    const reference = await nextReference();
 
-    const project = await one<{ id: string; reference: string }>(
+    // 3 tentatives maximum : la référence peut être prise par une création concurrente
+    let project: { id: string; reference: string } | null = null;
+    for (let attempt = 0; attempt < 3 && !project; attempt++) {
+      const reference = attempt === 0 ? await nextReference() : `PRJ-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`;
+      project = await one<{ id: string; reference: string }>(
       `insert into projects_pm(reference,name,description,category,client_name,owner_id,template_id,
           status,priority,start_date,due_date,budget_amount,budget_currency,technologies,objectives,deliverables)
        values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
@@ -181,7 +194,11 @@ workspaceRouter.post('/admin/pm/projects', requireAdmin, validate(projectSchema)
         p.objectives,
         p.deliverables,
       ],
-    );
+      ).catch((err: unknown) => {
+        if (attempt < 2) return null;
+        throw err;
+      });
+    }
     if (!project) throw new AppError(500, 'INTERNAL', 'Création du projet impossible.');
 
     // étapes générées depuis le modèle choisi (aucune étape codée en dur)

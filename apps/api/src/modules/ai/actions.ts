@@ -69,19 +69,49 @@ export function isActionName(v: string): v is ActionName {
   return Object.prototype.hasOwnProperty.call(ACTION_SPECS, v);
 }
 
-/** Extrait un bloc ```action {…} ``` de la réponse du modèle (sans l'exécuter). */
+/**
+ * Extrait une proposition d'action de la réponse du modèle.
+ * Balayage à accolades équilibrées plutôt qu'une expression régulière : les objets
+ * imbriqués (params) cassaient la version regex, et le modèle écrit tantôt
+ * ```action, tantôt ```json, tantôt sans bloc de code.
+ */
 export function extractAction(text: string): { name: string; params: Record<string, unknown> } | null {
-  const fenced = /```(?:json)?\s*(\{[\s\S]*?"action"[\s\S]*?\})\s*```/.exec(text);
-  const inline = /\{"action"\s*:\s*"[a-z_]+"[\s\S]*?\}/.exec(text);
-  const raw = fenced?.[1] ?? inline?.[0];
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as { action?: string; params?: Record<string, unknown> };
-    if (!parsed.action || !isActionName(parsed.action)) return null;
-    return { name: parsed.action, params: parsed.params ?? {} };
-  } catch {
-    return null;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== '{') continue;
+
+    // recherche de la fin de l'objet par équilibrage des accolades
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+    for (let j = i; j < text.length; j++) {
+      const c = text[j];
+      if (escaped) { escaped = false; continue; }
+      if (c === String.fromCharCode(92)) { escaped = true; continue; }
+      if (c === String.fromCharCode(34)) { inString = !inString; continue; }
+      if (inString) continue;
+      if (c === '{') depth += 1;
+      if (c === '}') {
+        depth -= 1;
+        if (depth === 0) { end = j; break; }
+      }
+    }
+    if (end === -1) return null;
+
+    const candidate = text.slice(i, end + 1);
+    if (!candidate.includes('"action"')) { i = end; continue; }
+
+    try {
+      const parsed = JSON.parse(candidate) as { action?: string; params?: Record<string, unknown> };
+      if (parsed.action && isActionName(parsed.action)) {
+        return { name: parsed.action, params: parsed.params ?? {} };
+      }
+    } catch {
+      /* pas un JSON valide : on continue le balayage */
+    }
+    i = end;
   }
+  return null;
 }
 
 /**

@@ -238,3 +238,25 @@ bookingsRouter.patch(
     }
   },
 );
+
+/* --------------------------------------------------- suppressions (admin) */
+
+leadsRouter.delete('/admin/leads/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const row = await one(`delete from leads where id=$1 returning id`, [String(req.params.id)]);
+    if (!row) throw new AppError(404, 'NOT_FOUND', 'Demande introuvable.');
+    res.json({ ok: true, data: { deleted: true } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+bookingsRouter.delete('/admin/bookings/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const row = await one(`delete from bookings where id=$1 returning id`, [String(req.params.id)]);
+    if (!row) throw new AppError(404, 'NOT_FOUND', 'Réservation introuvable.');
+    res.json({ ok: true, data: { deleted: true } });
+  } catch (err) {
+    next(err);
+  }
+});

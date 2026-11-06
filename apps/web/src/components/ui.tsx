@@ -107,32 +107,70 @@ export function MediaImage({
 
 /* ------------------------------------------------------- carte inclinable */
 
-/** Inclinaison 3D au pointeur — purement CSS transform, désactivée si reduced-motion. */
-export function TiltCard({ children, className = '', max = 7 }: { children: ReactNode; className?: string; max?: number }) {
+/**
+ * Carte 3D : perspective réelle, reflet qui suit le pointeur, contenu en profondeur.
+ * Coupée sur tactile (pas de pointeur fiable) et en prefers-reduced-motion.
+ */
+export function TiltCard({
+  children,
+  className = '',
+  max = 12,
+  glare = true,
+}: {
+  children: ReactNode;
+  className?: string;
+  max?: number;
+  glare?: boolean;
+}) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const frame = useRef<number | null>(null);
   const reduced = useRef(false);
 
   useEffect(() => {
     reduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return () => {
+      if (frame.current) cancelAnimationFrame(frame.current);
+    };
   }, []);
 
   function move(e: React.PointerEvent<HTMLDivElement>) {
     const el = ref.current;
     if (!el || reduced.current || e.pointerType === 'touch') return;
-    const r = el.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width - 0.5;
-    const py = (e.clientY - r.top) / r.height - 0.5;
-    el.style.transform = `perspective(900px) rotateY(${px * max}deg) rotateX(${-py * max}deg) translateY(-3px)`;
+    if (frame.current) cancelAnimationFrame(frame.current);
+    const { clientX, clientY } = e;
+
+    frame.current = requestAnimationFrame(() => {
+      const r = el.getBoundingClientRect();
+      const px = (clientX - r.left) / r.width;
+      const py = (clientY - r.top) / r.height;
+      el.style.setProperty('--mx', `${px * 100}%`);
+      el.style.setProperty('--my', `${py * 100}%`);
+      el.style.transform =
+        `perspective(1100px) rotateY(${(px - 0.5) * max}deg) rotateX(${(0.5 - py) * max}deg) ` +
+        `translate3d(0, -6px, 0) scale(1.012)`;
+      el.classList.add('is-tilting');
+    });
   }
 
   function leave() {
     const el = ref.current;
-    if (el) el.style.transform = '';
+    if (!el) return;
+    if (frame.current) cancelAnimationFrame(frame.current);
+    el.classList.remove('is-tilting');
+    el.style.transform = '';
   }
 
   return (
-    <div ref={ref} onPointerMove={move} onPointerLeave={leave} className={`tilt ${className}`}>
+    <div
+      ref={ref}
+      onPointerMove={move}
+      onPointerLeave={leave}
+      onPointerCancel={leave}
+      className={`card3d ${className}`}
+      style={{ transformStyle: 'preserve-3d' }}
+    >
       <div className="tilt-inner h-full">{children}</div>
+      {glare && <span className="card3d-shine" aria-hidden />}
     </div>
   );
 }

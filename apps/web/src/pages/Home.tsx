@@ -280,17 +280,25 @@ export default function Home() {
                   .slice(0, 6)
                   .map((s, i) => (
                     <Reveal key={s.id} delay={i * 50}>
-                      <article className="card card-hover h-full p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <h3 className="font-semibold leading-snug">{s.title}</h3>
-                          <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
-                        </div>
-                        <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted">{s.summary}</p>
-                        <p className="mt-4 text-[11px] uppercase tracking-wider text-muted">
-                          {s.price_note ?? 'Sur devis'}
-                          {s.duration_label ? ` · ${s.duration_label}` : ''}
-                        </p>
-                      </article>
+                      <TiltCard className="h-full rounded-xl" max={10}>
+                        <Link
+                          to="/services"
+                          className="card lift flex h-full flex-col p-5"
+                          style={{ transformStyle: 'preserve-3d' }}
+                        >
+                          <div className="card3d-depth flex items-start justify-between gap-3">
+                            <h3 className="font-semibold leading-snug">{s.title}</h3>
+                            <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
+                          </div>
+                          <p className="card3d-depth mt-2 line-clamp-3 text-sm leading-relaxed text-muted">
+                            {s.summary}
+                          </p>
+                          <p className="mt-auto pt-4 text-[11px] uppercase tracking-wider text-muted">
+                            {s.price_note ?? 'Sur devis'}
+                            {s.duration_label ? ` · ${s.duration_label}` : ''}
+                          </p>
+                        </Link>
+                      </TiltCard>
                     </Reveal>
                   ))}
           </div>
@@ -325,10 +333,18 @@ export default function Home() {
             <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {published.slice(0, 6).map((p, i) => (
                 <Reveal key={p.id} delay={i * 60}>
-                  <Link to={`/realisations/${p.slug}`} className="card card-hover block h-full overflow-hidden">
+                  <Link to={`/realisations/${p.slug}`} className="card lift zoom-parent block h-full overflow-hidden">
                     {p.cover_url ? (
                       <div className="media aspect-[16/10] w-full is-loaded">
-                        <img src={p.cover_url} alt={p.title} loading="lazy" decoding="async" width={800} height={500} />
+                        <img
+                          src={p.cover_url}
+                          alt={p.title}
+                          loading="lazy"
+                          decoding="async"
+                          width={800}
+                          height={500}
+                          className="zoom-img"
+                        />
                       </div>
                     ) : (
                       <div className="flex aspect-[16/10] items-center justify-center bg-wash">

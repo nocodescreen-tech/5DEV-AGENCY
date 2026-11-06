@@ -118,7 +118,9 @@ export default function SiteLayout() {
       </header>
 
       <main className="flex-1">
-        <Outlet />
+        <div key={location.pathname} className="page-transition">
+          <Outlet />
+        </div>
       </main>
 
       <footer className="border-t border-line bg-ink text-white">

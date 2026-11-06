@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
+import { DeleteButton } from '../../components/DeleteButton';
 import { apiGet, apiPost, ApiRequestError } from '../../lib/api';
 import { frDate } from '../../lib/format';
 
@@ -245,7 +246,8 @@ export default function AdminWorkspaceProjects() {
       <ul className="mt-6 space-y-3">
         {(projects ?? []).map((p) => (
           <li key={p.id}>
-            <Link to={`/admin/projets/${p.id}`} className="card block p-5 transition hover:border-brand/40">
+            <div className="flex items-stretch gap-2">
+            <Link to={`/admin/projets/${p.id}`} className="card lift block flex-1 p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -283,6 +285,14 @@ export default function AdminWorkspaceProjects() {
                 </div>
               </div>
             </Link>
+              <DeleteButton
+                label={`le projet ${p.reference}`}
+                detail="les tâches, jalons et documents liés seront supprimés"
+                path={`/api/v1/admin/pm/projects/${p.id}`}
+                invalidate={[['pm-projects'], ['dashboard']]}
+                title="Supprimer ce projet ?"
+              />
+            </div>
           </li>
         ))}
         {projects && projects.length === 0 && (

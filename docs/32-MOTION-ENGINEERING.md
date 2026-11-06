@@ -65,9 +65,23 @@ demande (`lazy` + `Suspense`) et jamais sur mobile en réseau lent.
 Routes publiques en `lazy()` avec `Suspense` et un squelette de page. La navigation ne bloque
 jamais : le contenu précédent reste affiché pendant le chargement du chunk suivant.
 
+## 5 bis. Cartes 3D et transitions de route (ajout)
+
+- `TiltCard` : perspective 1100 px, inclinaison jusqu'à 12°, reflet radial qui suit le
+  pointeur, contenu en `translateZ(28→46px)`, retour amorti en 520 ms. Désactivée au
+  toucher et en `prefers-reduced-motion`. Appliquée aux pôles, au catalogue d'accueil et
+  aux cartes de la page Services.
+- `.lift` + `.zoom-img` : élévation et zoom d'image au survol (résultats, services).
+- `.page-transition` : chaque changement de route rejoue une entrée de 320 ms
+  (`opacity` + `translateY(10px)`), côté public comme côté console.
+- `.field:focus` : anneau orange progressif ; `.shake` pour un envoi invalide.
+- Vérifié au navigateur : `getComputedStyle` renvoie bien une `matrix3d` pendant le survol,
+  l'animation de page vaut `page-in`, et les icônes de suppression sont présentes sur
+  chaque ligne des listes admin.
+
 ## 6. Ce qui reste à faire
 
-- Transition de route animée entre pages (sortie/entrée) — aujourd'hui simple fondu de chargement.
+- Transition de route : entrée seule (pas encore de sortie orchestrée avant navigation).
 - Parallaxe sur le hero — volontairement écartée (coût CLS).
 - Graphiques du tableau de bord : apparition progressive des barres (prévue, non faite).
 - Micro-interactions sur les lignes de tableaux admin (survol) — partielles.

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Power } from 'lucide-react';
+import { DeleteButton } from '../../components/DeleteButton';
 import { apiGet, apiPatch, apiPost, ApiRequestError } from '../../lib/api';
 import { frDateTime } from '../../lib/format';
 import { useState } from 'react';
@@ -105,6 +106,13 @@ export default function AdminAutomations() {
       <section className="mt-6 space-y-3">
         {(automations ?? []).map((a) => (
           <article key={a.id} className="card p-5">
+            <div className="absolute right-4 top-4">
+              <DeleteButton
+                label={`la règle « ${a.name} »`}
+                path={`/api/v1/admin/automations/${a.id}`}
+                invalidate={[['automations']]}
+              />
+            </div>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">

@@ -462,3 +462,152 @@
 .media[data-priority='true']::after {
   display: none !important;
 }
+
+/* ------------------------------------------------------------------ carte 3D */
+/* Perspective, reflet qui suit le pointeur et couches en profondeur.
+   Transform/opacity uniquement ; coupé sur tactile et en mode réduit. */
+.card3d {
+  position: relative;
+  transform-style: preserve-3d;
+  transition:
+    transform 520ms var(--ease-out),
+    box-shadow 520ms var(--ease-out);
+  will-change: transform;
+}
+.card3d.is-tilting {
+  transition: transform 90ms linear, box-shadow 200ms var(--ease-out);
+}
+.card3d::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 320ms var(--ease-out);
+  background: radial-gradient(
+    340px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(244, 119, 33, 0.16),
+    transparent 62%
+  );
+  z-index: 2;
+}
+.card3d:hover::before,
+.card3d.is-tilting::before {
+  opacity: 1;
+}
+.card3d-depth {
+  transform: translateZ(28px);
+  transition: transform 420ms var(--ease-out);
+}
+.card3d:hover .card3d-depth {
+  transform: translateZ(46px);
+}
+.card3d-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 320ms var(--ease-out);
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.55) 48%,
+    transparent 62%
+  );
+  mix-blend-mode: soft-light;
+  z-index: 3;
+}
+.card3d:hover .card3d-shine {
+  opacity: 1;
+}
+
+/* survol : la carte se soulève, sans jamais déplacer le contenu voisin */
+.lift {
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+.lift:hover {
+  transform: translate3d(0, -4px, 0);
+  box-shadow: 0 18px 40px -24px rgba(23, 23, 23, 0.45);
+  border-color: rgba(244, 119, 33, 0.35);
+}
+
+/* zoom d'image au survol de la carte parente */
+.zoom-parent:hover .zoom-img {
+  transform: scale(1.045);
+}
+.zoom-img {
+  transition: transform 620ms var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card3d,
+  .card3d-depth,
+  .card3d::before,
+  .card3d-shine,
+  .lift,
+  .zoom-img {
+    transition: none !important;
+    transform: none !important;
+  }
+  .card3d:hover::before,
+  .card3d-shine {
+    opacity: 0 !important;
+  }
+}
+
+/* transition de route : entrée courte, jamais de blocage d'interaction */
+.page-transition {
+  animation: page-in 320ms var(--ease-out) both;
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-transition { animation: none !important; }
+}
+
+/* --- champs : focus progressif, jamais brutal --- */
+.field {
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+.field:hover:not(:focus) {
+  border-color: rgba(23, 23, 23, 0.22);
+}
+.field:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(244, 119, 33, 0.14);
+  outline: none;
+}
+textarea.field:focus {
+  box-shadow: 0 0 0 3px rgba(244, 119, 33, 0.12);
+}
+
+/* erreur de formulaire : secousse courte, une seule fois */
+.shake {
+  animation: shake 340ms var(--ease-in-out) both;
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shake { animation: none !important; }
+}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { apiGet, apiPatch } from '../../lib/api';
+import { DeleteButton } from '../../components/DeleteButton';
 import { frDate } from '../../lib/format';
 
 type Task = {
@@ -103,6 +104,7 @@ export default function AdminTasks() {
                 <th className="py-2 pr-3">Priorité</th>
                 <th className="py-2 pr-3">Échéance</th>
                 <th className="py-2">Statut</th>
+                <th className="py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -138,6 +140,13 @@ export default function AdminTasks() {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td className="py-2 text-right">
+                    <DeleteButton
+                      label={`la tâche « ${t.title} »`}
+                      path={`/api/v1/admin/pm/tasks/${t.id}`}
+                      invalidate={[['all-tasks'], ['pm-project'], ['dashboard']]}
+                    />
                   </td>
                 </tr>
               ))}

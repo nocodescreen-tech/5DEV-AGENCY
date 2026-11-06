@@ -1,4 +1,4 @@
-import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import {
@@ -85,6 +85,7 @@ const COLLAPSE_KEY = 'five.sidebar.collapsed';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
   const [notifOpen, setNotifOpen] = useState(false);
@@ -285,7 +286,9 @@ export default function AdminLayout() {
             ))}
           </nav>
 
-          <Outlet />
+          <div key={location.pathname} className="page-transition">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

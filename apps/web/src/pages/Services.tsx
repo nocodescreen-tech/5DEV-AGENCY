@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Check } from 'lucide-react';
-import { Modal, Reveal } from '../components/ui';
+import { Modal, Reveal, TiltCard } from '../components/ui';
 import { apiGet } from '../lib/api';
 import type { Category, Service } from '../lib/types';
 
@@ -43,7 +43,9 @@ export default function Services() {
 
               <div className="mt-8 grid gap-4 md:grid-cols-2">
                 {items.map((s, i) => (
-                  <Reveal key={s.id} delay={i * 40} className="card flex h-full flex-col p-6">
+                  <Reveal key={s.id} delay={i * 40}>
+                    <TiltCard className="h-full rounded-xl" max={9}>
+                  <div className="card lift flex h-full flex-col p-6" style={{ transformStyle: 'preserve-3d' }}>
                     <div className="flex items-start justify-between gap-4">
                       <h3 className="text-lg font-semibold">{s.title}</h3>
                       <span className="whitespace-nowrap rounded-full bg-brand/10 px-3 py-1 text-[11px] font-medium text-brand">
@@ -74,6 +76,8 @@ export default function Services() {
                         </Link>
                       </span>
                     </div>
+                  </div>
+                    </TiltCard>
                   </Reveal>
                 ))}
               </div>

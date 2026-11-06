@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Bot, Clock, Paperclip, Pause, Pencil, Play, Plus, StickyNote } from 'lucide-react';
+import { DeleteButton } from '../../components/DeleteButton';
 import { apiGet, apiPatch, apiPost } from '../../lib/api';
 import { frDate, frDateTime } from '../../lib/format';
 
@@ -689,7 +690,14 @@ export default function AdminProjectDetail() {
               <li key={n.id} className="card p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">{n.title}</p>
-                  <span className="rounded bg-wash px-2 py-0.5 text-[10px] text-muted">{n.kind}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="rounded bg-wash px-2 py-0.5 text-[10px] text-muted">{n.kind}</span>
+                    <DeleteButton
+                      label={`la note « ${n.title} »`}
+                      path={`/api/v1/admin/pm/notes/${n.id}`}
+                      invalidate={[['pm-project', id]]}
+                    />
+                  </span>
                 </div>
                 {n.body && <p className="mt-1 whitespace-pre-wrap text-xs text-ink/70">{n.body}</p>}
                 <p className="mt-2 text-[10px] text-muted">{frDateTime(n.created_at)}</p>
@@ -753,9 +761,14 @@ export default function AdminProjectDetail() {
                 <a href={d.url} target="_blank" rel="noreferrer noopener" className="text-sm hover:text-brand">
                   {d.name}
                 </a>
-                <span className="text-[10px] uppercase tracking-wider text-muted">
+                <span className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted">
                   {d.kind}
                   {d.is_shared ? ' · partagé' : ''}
+                  <DeleteButton
+                    label={`le document « ${d.name} »`}
+                    path={`/api/v1/admin/pm/documents/${d.id}`}
+                    invalidate={[['pm-project', id]]}
+                  />
                 </span>
               </li>
             ))}

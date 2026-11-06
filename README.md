@@ -48,3 +48,13 @@ npm run verify            # lint + typecheck + tests
 Aucun service, aucune équipe, aucune capacité n'est inventé. Une fonctionnalité non
 livrée n'apparaît pas sur le site. Les mentions « à venir » sont interdites dans
 l'interface publique : on publie ce qui fonctionne, ou rien.
+
+## Vérification
+
+```bash
+npm run verify      # typecheck + lint + tests (API et web)
+npm run build       # build de production
+npm run e2e         # parcours navigateur : connexion OTP, suppression confirmée, 3D, transitions
+```
+
+`npm run e2e` exige l'API (`npm run dev:api`) et le web (`npm run dev:web`) déjà lancés.

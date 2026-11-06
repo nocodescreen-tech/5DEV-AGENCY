@@ -69,3 +69,27 @@ npm test --workspace=@5dev/api   # sécurité incluse
 ```
 
 Résultat de référence au dernier passage : **56 tests API + 3 tests web, 0 échec**.
+
+## 6. Test navigateur (E2E) — `npm run e2e`
+
+Ce que les tests unitaires ne peuvent pas voir est couvert par un parcours réel dans Edge
+(PID Playwright, aucun navigateur téléchargé) :
+
+| Contrôle | Ce qu'il prouve |
+|---|---|
+| Mot de passe seul → défi TOTP | aucun cookie de session n'existe avant le code |
+| Code TOTP valide → session | le second facteur ouvre bien la session |
+| Corbeille → dialogue de confirmation | aucune suppression sans confirmation explicite |
+| Annuler | le dialogue se ferme et la donnée reste |
+| Confirmer | la ligne disparaît de l'interface **et** de l'API |
+| Survol d'une carte | `matrix3d` réellement appliquée (la 3D n'est pas décorative) |
+| Changement de route | animation `page-in` active |
+| `prefers-reduced-motion` | zéro contenu masqué |
+| Console | aucune erreur JavaScript pendant le parcours |
+
+Prérequis : `npm run dev:api` et `npm run dev:web` lancés. Le script crée une tâche
+jetable, la supprime par l'interface, puis révoque le secret TOTP qu'il a créé —
+`E2E_KEEP_OTP=1` pour le conserver.
+
+Limite : ce test suppose un Edge installé et une base accessible. Il ne tourne pas en
+intégration continue sans ces deux prérequis ; il est fait pour être lancé avant livraison.

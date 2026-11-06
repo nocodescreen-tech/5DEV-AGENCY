@@ -81,3 +81,15 @@ Le tableau ci-dessous est la source de vérité de l'avancement (à tenir à jou
 | 6 Commercial | partiel | 06/11/2026 | devis/factures non implémentés ; taux USD/CDF administrable en place |
 | 7 Contenus & SEO | à faire | — | — |
 | 8 Qualité & prod | à faire | — | — |
+
+## Extension « écosystème intelligent » (06/11/2026)
+
+| Phase | Périmètre | État réel | Preuve |
+|---|---|---|---|
+| 1 — Fondations & identité | site public, dashboard, thèmes, services, réalisations | **fait** | captures 1440/390, 8 pages, thème persistant |
+| 2 — Administration complète | demandes, réservations, clients, devis/factures, utilisateurs, personnalisation | **partiel** : demandes, réservations, réglages, préférences, notifications ; devis/factures PDF et rôles granulaires à faire | console 8 écrans |
+| 3 — Intelligence artificielle | AI Gateway, registre de tâches, prompts, journal d’usage, classification | **fait côté code** ; appel NVIDIA réel conditionné à `NVIDIA_API_KEY` | 20 contrôles fonctionnels, `ai_usage` alimenté |
+| 4 — Marketing & automatisation | newsletter double opt-in, campagnes, workflows, notifications | **fait** (éditeur visuel, statistiques d’ouverture et programmation d’envoi restant) | envoi réel Brevo, `automation_runs` |
+| 5 — Industrialisation | tests, sécurité, monitoring, sauvegardes, production | **à faire** : CI, métriques, alerting, sauvegarde automatisée | doc 20 |
+
+Documents associés : `14` à `20`.

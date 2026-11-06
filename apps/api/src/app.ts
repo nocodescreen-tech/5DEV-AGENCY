@@ -1,6 +1,12 @@
 import express, { type Express } from 'express';
+import cookieParser from 'cookie-parser';
 import { healthRouter } from './routes/health.js';
+import { authRouter } from './modules/auth.js';
+import { catalogRouter } from './modules/catalog.js';
+import { bookingsRouter, leadsRouter } from './modules/intake.js';
+import { dashboardRouter } from './modules/dashboard.js';
 import { errorHandler, notFound } from './middlewares/errors.js';
+import { currentUser } from './lib/session.js';
 
 /**
  * Application Express (sans écoute réseau) : testable directement avec supertest.
@@ -11,8 +17,8 @@ export function createApp(): Express {
   app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: false }));
+  app.use(cookieParser());
 
-  // En-têtes de base (durcissement minimal ; CSP côté front en production)
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -20,7 +26,22 @@ export function createApp(): Express {
     next();
   });
 
+  // session facultative sur toutes les routes (les médias privés en ont besoin)
+  app.use(async (req, _res, next) => {
+    try {
+      req.user = (await currentUser(req)) ?? undefined;
+    } catch {
+      req.user = undefined;
+    }
+    next();
+  });
+
   app.use('/api/v1', healthRouter);
+  app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1', catalogRouter);
+  app.use('/api/v1', leadsRouter);
+  app.use('/api/v1', bookingsRouter);
+  app.use('/api/v1', dashboardRouter);
   app.use(healthRouter); // /healthz à la racine pour les sondes d'hébergeur
 
   app.use(notFound);

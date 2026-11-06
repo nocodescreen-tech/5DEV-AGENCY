@@ -1,10 +1,9 @@
-import { Sequelize } from 'sequelize';
+import { Sequelize, QueryTypes } from 'sequelize';
 import { config } from '../config.js';
 
 /**
- * Connexion base de données.
- * Optionnelle au démarrage : le squelette doit pouvoir tourner sans Postgres
- * (utile en CI et pour `/healthz`), mais signale clairement l'état.
+ * Couche base de données : Sequelize comme driver unique (pool, types, échappement),
+ * requêtes SQL explicites pour rester lisibles et proches du schéma (ADR-008).
  */
 export const sequelize: Sequelize | null = config.DATABASE_URL
   ? new Sequelize(config.DATABASE_URL, {
@@ -19,7 +18,6 @@ export const sequelize: Sequelize | null = config.DATABASE_URL
 
 export type DbState = 'up' | 'down' | 'not_configured';
 
-/** Ping court : ne lève jamais, renvoie l'état pour /healthz. */
 export async function databaseState(): Promise<DbState> {
   if (!sequelize) return 'not_configured';
   try {
@@ -28,6 +26,40 @@ export async function databaseState(): Promise<DbState> {
   } catch {
     return 'down';
   }
+}
+
+function requireDb(): Sequelize {
+  if (!sequelize) throw new Error('DATABASE_URL absent : base non configurée');
+  return sequelize;
+}
+
+/** Toutes les lignes d'une requête SELECT. */
+export async function all<T = Record<string, unknown>>(
+  sql: string,
+  params: unknown[] = [],
+): Promise<T[]> {
+  const rows = await requireDb().query(sql, { bind: params, type: QueryTypes.SELECT });
+  return rows as T[];
+}
+
+/** Première ligne ou null. */
+export async function one<T = Record<string, unknown>>(
+  sql: string,
+  params: unknown[] = [],
+): Promise<T | null> {
+  const rows = await all<T>(sql, params);
+  return rows[0] ?? null;
+}
+
+/** Exécute un ordre (insert/update/delete) et renvoie les lignes RETURNING. */
+export async function run<T = Record<string, unknown>>(
+  sql: string,
+  params: unknown[] = [],
+): Promise<T[]> {
+  const result = (await requireDb().query(sql, { bind: params })) as unknown;
+  // Sequelize renvoie [résultat, métadonnées] ; les RETURNING sont dans le 2e élément.
+  if (Array.isArray(result) && Array.isArray(result[1])) return result[1] as T[];
+  return [];
 }
 
 export async function closeDatabase(): Promise<void> {

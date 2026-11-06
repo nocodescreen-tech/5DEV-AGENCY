@@ -2,34 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tokens provisoires du lot 1 — la direction artistique définitive (Nebula)
-   remplacera ces valeurs dans docs/03-DESIGN-SYSTEM.md. */
+/* Identité 5DEV : orange #F47721, blanc, noir #171717 (source de vérité du brief). */
 :root {
-  --ink: #050505;
-  --ink-2: #0d0d0f;
-  --line: #1e1e22;
-  --chalk: #f4f4f2;
-  --mute: #9a9aa0;
-  --signal: #00cfc8;
+  --brand: #f47721;
+  --brand-600: #d9610f;
+  --ink: #171717;
+  --ink-soft: #2a2a2a;
+  --paper: #ffffff;
+  --muted: #6b6b6b;
+  --line: #e6e2dd;
+  --wash: #faf8f5;
 }
 
 @layer base {
   html {
-    color-scheme: dark;
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
     margin: 0;
-    background: var(--ink);
-    color: var(--chalk);
+    background: var(--paper);
+    color: var(--ink);
+    font-family:
+      'Inter',
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
   ::selection {
-    background: var(--signal);
-    color: var(--ink);
+    background: var(--brand);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -41,4 +60,43 @@
       scroll-behavior: auto !important;
     }
   }
+}
+
+@layer components {
+  .container-x {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
+  }
+
+  .eyebrow {
+    @apply font-mono text-[11px] uppercase tracking-[0.28em] text-[#f47721];
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold transition;
+  }
+
+  .btn-primary {
+    @apply btn bg-[#f47721] text-white hover:bg-[#d9610f];
+  }
+
+  .btn-ghost {
+    @apply btn border border-[#171717]/15 text-[#171717] hover:border-[#171717]/40;
+  }
+
+  .field {
+    @apply w-full rounded-lg border border-[#e6e2dd] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#f47721];
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-[#6b6b6b];
+  }
+
+  .card {
+    @apply rounded-2xl border border-[#e6e2dd] bg-white;
+  }
+}
+
+/* bandeau photo + texte lisible */
+.overlay-dark {
+  background: linear-gradient(180deg, rgba(23, 23, 23, 0.15) 0%, rgba(23, 23, 23, 0.85) 100%);
 }

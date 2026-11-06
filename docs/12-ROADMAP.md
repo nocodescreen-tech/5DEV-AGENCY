@@ -74,10 +74,10 @@ Le tableau ci-dessous est la source de vérité de l'avancement (à tenir à jou
 |---|---|---|---|
 | 0 Fondations | en cours | 05/11/2026 | ce dossier |
 | 1 Squelette | **fait** | 05/11/2026 | `npm run verify` (7 tests), `/healthz` = base up, capture 1440 px, build prod 103 Ko gzip |
-| 2 Données & admin | à faire | — | — |
-| 3 Site public | à faire | — | — |
-| 4 Devis & contact | à faire | — | — |
-| 5 Photographie | à faire | — | — |
-| 6 Commercial | à faire | — | — |
+| 2 Données & admin | **fait** | 06/11/2026 | schéma SQL appliqué, owner créé, auth session + RBAC, console 6 écrans |
+| 3 Site public | **fait** | 06/11/2026 | 8 pages publiques réelles, palette #F47721, captures 1440/390 px, 0 erreur console |
+| 4 Devis & contact | **fait** | 06/11/2026 | devis 3 étapes → lead en base (référence renvoyée), contact, réservation avec créneaux |
+| 5 Photographie | **retiré du périmètre** | 06/11/2026 | décision client : pas de galeries dans 5DEV (ADR-009) |
+| 6 Commercial | partiel | 06/11/2026 | devis/factures non implémentés ; taux USD/CDF administrable en place |
 | 7 Contenus & SEO | à faire | — | — |
 | 8 Qualité & prod | à faire | — | — |

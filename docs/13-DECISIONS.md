@@ -88,6 +88,44 @@ possible au lot 3 si l'outillage est sain — la migration est locale (config + 
 
 ---
 
+## ADR-008 — Sequelize comme driver, SQL explicite comme langage de requête
+
+**Statut** : accepted · 06/11/2026
+**Contexte** : le cahier des charges impose Sequelize ; la modélisation V1 compte 12 tables et
+des requêtes de lecture ciblées (tableau de bord, listes filtrées). Écrire 12 modèles Sequelize
+sans gain réel ajouterait de l’indirection et des risques de désynchronisation avec le schéma.
+**Décision** : Sequelize fournit le pool, les types et l’échappement (`sequelize.query` avec
+paramètres liés) ; le schéma vit dans `apps/api/src/db/schema.sql`, appliqué de façon idempotente.
+**Conséquences** : aucune requête concaténée (tout est paramétré), pas d’ORM magique, migrations
+lisibles en SQL. Si un jour le domaine exige des relations complexes, des modèles pourront être
+ajoutés table par table sans réécrire l’existant.
+
+## ADR-009 — Périmètre photographie : service commercial, pas de galeries
+
+**Statut** : accepted · 06/11/2026 (décision explicite du client)
+**Contexte** : la première version prévoyait albums, uploads, permissions et livraison privée.
+Le commanditaire a tranché : « on a un service photographique mais on ne va pas y mettre des
+photos, oublie l’histoire des galeries ».
+**Décision** : le pôle CREATIVE PHOTOGRAPHY reste au catalogue (5 services, dont mariage,
+portrait, événement, produit, post-production) et la réservation de séance est conservée.
+Aucun module album, média, upload ou espace de livraison n’est développé en V1.
+**Conséquences** : les tables `albums`/`media` ont été retirées du schéma ; Cloudinary reste
+configuré dans `.env` mais n’est plus requis par le code (réservé aux visuels de réalisations
+si besoin). Réintroduire les galeries plus tard = un lot dédié, sans dette dans le code actuel.
+
+## ADR-010 — Palette officielle orange #F47721 / blanc / noir #171717
+
+**Statut** : accepted · 06/11/2026
+**Contexte** : la première maquette du squelette utilisait un noir profond + turquoise, choix
+provisoire qui ne correspondait pas à l’identité réelle.
+**Décision** : l’identité officielle transmise fait foi — orange `#F47721`, blanc `#FFFFFF`,
+noir `#171717`, gris secondaire `#6B6B6B`. Appliquée dans `index.css`, `tailwind.config.js` et
+`docs/02-BRAND-IDENTITY.md`.
+**Conséquences** : toute nouvelle interface part de ces jetons ; l’orange est un accent, jamais
+un fond de grande surface.
+
+---
+
 ## Décisions ouvertes avant le lot 2
 
 | # | Question | Impact |

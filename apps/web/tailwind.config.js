@@ -4,16 +4,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#050505',
-        ink2: '#0d0d0f',
-        line: '#1e1e22',
-        chalk: '#f4f4f2',
-        mute: '#9a9aa0',
-        signal: '#00cfc8',
+        brand: '#f47721',
+        brandDark: '#d9610f',
+        ink: '#171717',
+        inkSoft: '#2a2a2a',
+        paper: '#ffffff',
+        muted: '#6b6b6b',
+        line: '#e6e2dd',
+        wash: '#faf8f5',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
+      maxWidth: { prose: '68ch' },
     },
   },
   plugins: [],

@@ -22,6 +22,9 @@ const schema = z.object({
     .transform((v) => v === 'true' || v === '1'),
   DEFAULT_CURRENCY: z.enum(['USD', 'CDF']).default('USD'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  // Secret de session : sert aussi de clé de dérivation pour le chiffrement des
+  // secrets stockés en base. Obligatoire hors développement.
+  SESSION_SECRET: z.string().min(16).default('dev-only-session-secret-change-me'),
 });
 
 export type Config = z.infer<typeof schema> & { version: string };

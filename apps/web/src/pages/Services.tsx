@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Check } from 'lucide-react';
+import { ArrowRight, Check } from 'lucide-react';
+import { Modal, Reveal } from '../components/ui';
 import { apiGet } from '../lib/api';
 import type { Category, Service } from '../lib/types';
-import Reveal from '../components/Reveal';
 
 export default function Services() {
+  const [detail, setDetail] = useState<Service | null>(null);
   const { data, isPending, isError } = useQuery({
     queryKey: ['services'],
     queryFn: () => apiGet<{ categories: Category[]; services: Service[] }>('/api/v1/services'),
@@ -41,7 +43,7 @@ export default function Services() {
 
               <div className="mt-8 grid gap-4 md:grid-cols-2">
                 {items.map((s, i) => (
-                  <Reveal key={s.id} delay={i * 0.05} className="card flex h-full flex-col p-6">
+                  <Reveal key={s.id} delay={i * 40} className="card flex h-full flex-col p-6">
                     <div className="flex items-start justify-between gap-4">
                       <h3 className="text-lg font-semibold">{s.title}</h3>
                       <span className="whitespace-nowrap rounded-full bg-brand/10 px-3 py-1 text-[11px] font-medium text-brand">
@@ -61,14 +63,16 @@ export default function Services() {
                       </ul>
                     )}
 
-                    <div className="mt-auto flex items-center justify-between pt-6">
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-6">
                       <span className="text-xs text-muted">{s.duration_label ?? ''}</span>
-                      <Link
-                        to={`/devis?service=${s.slug}`}
-                        className="text-sm font-medium text-brand hover:underline"
-                      >
-                        Demander ce service
-                      </Link>
+                      <span className="flex items-center gap-4">
+                        <button type="button" onClick={() => setDetail(s)} className="text-sm text-muted transition hover:text-brand">
+                          Détail
+                        </button>
+                        <Link to={`/devis?service=${s.slug}`} className="text-sm font-medium text-brand hover:underline">
+                          Demander ce service
+                        </Link>
+                      </span>
                     </div>
                   </Reveal>
                 ))}
@@ -77,6 +81,39 @@ export default function Services() {
           );
         })}
       </div>
+
+      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title={detail?.title ?? ''}>
+        {detail && (
+          <div>
+            <p className="text-sm leading-relaxed text-muted">{detail.description || detail.summary}</p>
+            {detail.deliverables.length > 0 && (
+              <ul className="mt-4 space-y-2">
+                {detail.deliverables.map((d) => (
+                  <li key={d} className="flex items-start gap-2 text-sm">
+                    <Check className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
+                    {d}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-xs text-muted">
+              <div>
+                <dt className="uppercase tracking-wider">Tarif</dt>
+                <dd className="mt-0.5 text-sm text-ink">{detail.price_note ?? 'Sur devis'}</dd>
+              </div>
+              {detail.duration_label && (
+                <div>
+                  <dt className="uppercase tracking-wider">Délai</dt>
+                  <dd className="mt-0.5 text-sm text-ink">{detail.duration_label}</dd>
+                </div>
+              )}
+            </dl>
+            <Link to={`/devis?service=${detail.slug}`} className="btn-primary mt-6 w-full justify-center">
+              Demander ce service <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </div>
+        )}
+      </Modal>
 
       <div className="mt-20 rounded-2xl bg-ink p-8 text-white sm:p-12">
         <h2 className="text-2xl font-black sm:text-3xl">Un besoin qui ne figure pas ici ?</h2>

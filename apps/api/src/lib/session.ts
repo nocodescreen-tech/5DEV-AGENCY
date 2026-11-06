@@ -11,6 +11,9 @@ export type SessionUser = {
   id: string;
   email: string;
   full_name: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  job_title: string | null;
   role: 'owner' | 'admin' | 'editor';
 };
 
@@ -40,13 +43,21 @@ export async function currentUser(req: Request): Promise<SessionUser | null> {
   const token = (req.cookies as Record<string, string> | undefined)?.[COOKIE];
   if (!token) return null;
   const row = await one<SessionUser & { expires_at: string }>(
-    `select u.id, u.email, u.full_name, u.role, s.expires_at
+    `select u.id, u.email, u.full_name, u.display_name, u.avatar_url, u.job_title, u.role, s.expires_at
        from sessions s join users u on u.id = s.user_id
       where s.token_hash = $1 and s.expires_at > now() and u.is_active`,
     [sha(token)],
   );
   if (!row) return null;
-  return { id: row.id, email: row.email, full_name: row.full_name, role: row.role };
+  return {
+    id: row.id,
+    email: row.email,
+    full_name: row.full_name,
+    display_name: row.display_name,
+    avatar_url: row.avatar_url,
+    job_title: row.job_title,
+    role: row.role,
+  };
 }
 
 export async function destroySession(req: Request, res: Response): Promise<void> {

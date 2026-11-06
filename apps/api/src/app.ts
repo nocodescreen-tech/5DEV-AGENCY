@@ -11,7 +11,10 @@ import { newsletterRouter } from './modules/newsletter.js';
 import { automationRouter } from './modules/automation.js';
 import { prefsRouter } from './modules/prefs.js';
 import { workspaceRouter } from './modules/workspace.js';
+import { aiChatRouter } from './modules/ai-chat.js';
+import { profileRouter } from './modules/profile.js';
 import { errorHandler, notFound } from './middlewares/errors.js';
+import { corsAllowlist, securityHeaders } from './middlewares/security.js';
 import { currentUser } from './lib/session.js';
 
 /**
@@ -25,12 +28,8 @@ export function createApp(): Express {
   app.use(express.urlencoded({ extended: false }));
   app.use(cookieParser());
 
-  app.use((_req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('X-Frame-Options', 'DENY');
-    next();
-  });
+  app.use(securityHeaders);
+  app.use(corsAllowlist);
 
   // session facultative sur toutes les routes (les médias privés en ont besoin)
   app.use(async (req, _res, next) => {
@@ -54,6 +53,8 @@ export function createApp(): Express {
   app.use('/api/v1', automationRouter);
   app.use('/api/v1', prefsRouter);
   app.use('/api/v1', workspaceRouter);
+  app.use('/api/v1', aiChatRouter);
+  app.use('/api/v1', profileRouter);
   app.use(healthRouter); // /healthz à la racine pour les sondes d'hébergeur
 
   app.use(notFound);

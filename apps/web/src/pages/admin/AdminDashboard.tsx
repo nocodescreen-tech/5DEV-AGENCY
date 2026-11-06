@@ -1,17 +1,43 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight } from 'lucide-react';
+import {
+  ArrowUpRight,
+  ArrowDownRight,
+  Banknote,
+  CalendarClock,
+  Inbox,
+  Sparkles,
+  Timer,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 import { apiGet } from '../../lib/api';
-import { frDateTime } from '../../lib/format';
-import Reveal from '../../components/Reveal';
+import { frDate, frDateTime } from '../../lib/format';
+import { Skeleton } from '../../components/ui';
 
-type Point = { jour: string; demandes: number; reservations: number };
 type Dash = {
-  leads: { nouvelles: number; en_cours: number; gagnees: number; total: number };
-  bookings: { a_confirmer: number; confirmees: number; a_venir: number; total: number };
-  catalog: { services: number; projets: number };
+  kpis: {
+    leads_total: number;
+    leads_new: number;
+    leads_week: number;
+    leads_prev_week: number;
+    bookings_pending: number;
+    bookings_upcoming: number;
+    projects_active: number;
+    tasks_open: number;
+    tasks_late: number;
+    time_week: number;
+    ai_calls_24h: number;
+    subscribers_confirmed: number;
+    services_published: number;
+    works_published: number;
+  };
+  catalog: { services: number; projets: number; modeles: number };
+  series: { jour: string; demandes: number; reservations: number; minutes: number }[];
   activity: { type: string; id: string; label: string; status: string; created_at: string }[];
-  series?: Point[];
+  tasksSoon: { id: string; title: string; priority: string; due_date: string | null; project_name: string; project_id: string }[];
+  statuses: { status: string; n: number }[];
+  generatedAt: string;
 };
 
 const STATUS_FR: Record<string, string> = {
@@ -22,198 +48,293 @@ const STATUS_FR: Record<string, string> = {
   lost: 'perdue',
   pending: 'à confirmer',
   confirmed: 'confirmée',
-  done: 'réalisée',
+  done: 'terminée',
   cancelled: 'annulée',
+  planning: 'planification',
+  active: 'en cours',
+  paused: 'en pause',
+  blocked: 'bloqué',
 };
 
-function Skeleton() {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="card p-5">
-          <div className="h-2.5 w-24 animate-pulse rounded bg-line" />
-          <div className="mt-4 h-7 w-16 animate-pulse rounded bg-line" />
-          <div className="mt-3 h-2 w-20 animate-pulse rounded bg-line" />
-        </div>
-      ))}
-    </div>
-  );
-}
+const TYPE_FR: Record<string, string> = { lead: 'Demande', booking: 'Réservation', project: 'Projet' };
 
-/** Courbe réelle (14 derniers jours) — SVG natif, aucune librairie de graphes. */
-function SeriesChart({ points }: { points: Point[] }) {
-  if (!points.length) return null;
-  const w = 640;
-  const h = 160;
-  const pad = 8;
-  const max = Math.max(1, ...points.map((p) => Math.max(p.demandes, p.reservations)));
-  const x = (i: number) => pad + (i * (w - pad * 2)) / Math.max(1, points.length - 1);
-  const y = (v: number) => h - pad - (v / max) * (h - pad * 2);
-
-  const path = (key: 'demandes' | 'reservations') =>
-    points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
-
-  const area = `${path('demandes')} L${x(points.length - 1)},${h - pad} L${x(0)},${h - pad} Z`;
-
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-40 w-full" role="img" aria-label="Demandes et réservations des 14 derniers jours">
-      <defs>
-        <linearGradient id="fillDemandes" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#F47721" stopOpacity="0.24" />
-          <stop offset="100%" stopColor="#F47721" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#fillDemandes)" />
-      <path d={path('demandes')} fill="none" stroke="#F47721" strokeWidth="2" strokeLinecap="round" />
-      <path d={path('reservations')} fill="none" stroke="#9a9aa0" strokeWidth="1.5" strokeDasharray="4 4" strokeLinecap="round" />
-      {points.map((p, i) => (
-        <circle key={p.jour} cx={x(i)} cy={y(p.demandes)} r="2.5" fill="#F47721">
-          <title>{`${p.jour} — ${p.demandes} demande(s), ${p.reservations} réservation(s)`}</title>
-        </circle>
-      ))}
-    </svg>
-  );
-}
+const hours = (m: number) => `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
 
 export default function AdminDashboard() {
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => apiGet<Dash>('/api/v1/admin/dashboard'),
     refetchInterval: 60_000,
   });
 
-  if (isPending) {
+  if (isPending || !data) {
     return (
-      <div>
-        <h1 className="text-2xl font-black">Tableau de bord</h1>
-        <p className="mt-1 text-sm text-muted">Chargement des données réelles…</p>
-        <div className="mt-8">
-          <Skeleton />
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
         </div>
+        <Skeleton className="h-72" />
       </div>
     );
   }
 
-  if (isError || !data) {
-    return (
-      <div className="rounded-xl border border-brand/40 bg-brand/5 p-5 text-sm">
-        Le tableau de bord est indisponible. Vérifiez que l’API et la base répondent.
-      </div>
-    );
-  }
+  const k = data.kpis;
+  const delta = k.leads_prev_week > 0 ? Math.round(((k.leads_week - k.leads_prev_week) / k.leads_prev_week) * 100) : null;
+  const maxSeries = Math.max(1, ...data.series.map((s) => Math.max(s.demandes, s.reservations)));
+  const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const cards = [
-    { label: 'Demandes à traiter', value: data.leads.nouvelles, hint: `${data.leads.total} au total`, to: '/admin/demandes' },
-    { label: 'Réservations à confirmer', value: data.bookings.a_confirmer, hint: `${data.bookings.a_venir} à venir`, to: '/admin/reservations' },
-    { label: 'Services publiés', value: data.catalog.services, hint: 'catalogue', to: '/admin/services' },
-    { label: 'Réalisations publiées', value: data.catalog.projets, hint: 'portefeuille', to: '/admin/realisations' },
+    {
+      label: 'Demandes à traiter',
+      value: k.leads_new,
+      hint: `${k.leads_total} au total`,
+      icon: Inbox,
+      to: '/admin/demandes',
+      tone: 'brand' as const,
+    },
+    {
+      label: 'Projets en cours',
+      value: k.projects_active,
+      hint: `${k.tasks_open} tâche(s) ouverte(s)`,
+      icon: TrendingUp,
+      to: '/admin/projets',
+    },
+    {
+      label: 'Échéances proches',
+      value: data.tasksSoon.length,
+      hint: k.tasks_late > 0 ? `${k.tasks_late} en retard` : 'aucun retard',
+      icon: CalendarClock,
+      to: '/admin/taches',
+      alert: k.tasks_late > 0,
+    },
+    {
+      label: 'Temps cette semaine',
+      value: hours(k.time_week),
+      hint: `${k.ai_calls_24h} appel(s) IA sur 24 h`,
+      icon: Timer,
+      to: '/admin/temps',
+    },
   ];
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      {/* ------------------------------------------------------------ en-tête */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">Overview</p>
-          <h1 className="mt-1 text-2xl font-black">Tableau de bord</h1>
+          <p className="eyebrow text-brand">Overview</p>
+          <h1 className="display-2 mt-1">Tableau de bord</h1>
+          <p className="mt-1 text-sm text-muted">
+            {today} · données de la base, actualisées toutes les minutes
+          </p>
         </div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">Build. Innovate. Grow.</p>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/admin/ia/chat" className="btn-ghost !py-2 text-xs">
+            <Sparkles className="size-3.5" /> Assistant IA
+          </Link>
+          <Link to="/admin/projets" className="btn-primary !py-2 text-xs">
+            Nouveau projet <ArrowUpRight className="size-3.5" />
+          </Link>
+        </div>
       </div>
 
+      {/* -------------------------------------------------------------- KPI */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((c, i) => (
-          <Reveal key={c.label} delay={i * 0.05}>
-            <Link to={c.to} className="card block p-5 transition hover:border-brand/40">
-              <p className="text-xs uppercase tracking-wider text-muted">{c.label}</p>
-              <p className="mt-3 text-3xl font-black tabular-nums">{c.value}</p>
-              <p className="mt-1 flex items-center gap-1 text-xs text-muted">
-                {c.hint} <ArrowUpRight className="size-3" aria-hidden />
+        {cards.map((c, i) => {
+          const Icon = c.icon;
+          return (
+            <Link
+              key={c.label}
+              to={c.to}
+              className="group relative overflow-hidden rounded-2xl border border-line bg-paper p-5 transition hover:border-brand/50 hover:shadow-lg"
+              style={{ animation: `page-in .5s var(--ease-out) ${i * 60}ms both` }}
+            >
+              <div className="flex items-start justify-between">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-muted">{c.label}</p>
+                <Icon className={`size-4 ${c.alert ? 'text-brand' : 'text-ink/25'}`} aria-hidden />
+              </div>
+              <p className={`mt-3 text-4xl font-black leading-none tabular-nums ${c.tone === 'brand' ? 'text-brand' : ''}`}>
+                {c.value}
               </p>
+              <p className={`mt-2 text-xs ${c.alert ? 'text-brand' : 'text-muted'}`}>{c.hint}</p>
+              {c.label === 'Demandes à traiter' && delta !== null && (
+                <p className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${delta >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-brand/10 text-brand'}`}>
+                  {delta >= 0 ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+                  {Math.abs(delta)} % sur 7 jours
+                </p>
+              )}
+              <span className="pointer-events-none absolute -right-6 -bottom-8 size-24 rounded-full bg-brand/5 transition group-hover:bg-brand/10" aria-hidden />
             </Link>
-          </Reveal>
-        ))}
+          );
+        })}
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <section className="card p-5 lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Activité — 14 derniers jours</h2>
-            <div className="flex items-center gap-4 text-[11px] text-muted">
+      {/* --------------------------------------------------- graphique + côté */}
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.6fr_1fr]">
+        <section className="rounded-2xl border border-line bg-paper p-5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="font-semibold">Activité — 14 derniers jours</h2>
+              <p className="mt-0.5 text-xs text-muted">Demandes et réservations enregistrées chaque jour.</p>
+            </div>
+            <div className="flex gap-4 text-[11px] text-muted">
               <span className="flex items-center gap-1.5">
                 <span className="size-2 rounded-full bg-brand" /> demandes
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-muted" /> réservations
+                <span className="size-2 rounded-full bg-ink/30" /> réservations
               </span>
             </div>
           </div>
-          <div className="mt-4">
-            <SeriesChart points={data.series ?? []} />
+
+          <div className="mt-6 flex h-44 items-end gap-1.5">
+            {data.series.map((s) => (
+              <div key={s.jour} className="group relative flex flex-1 flex-col items-center gap-1">
+                <div className="flex h-36 w-full items-end justify-center gap-0.5">
+                  <div
+                    className="w-full max-w-[10px] rounded-t bg-brand transition-all group-hover:bg-brand/80"
+                    style={{ height: `${Math.max(2, (s.demandes / maxSeries) * 100)}%` }}
+                    title={`${frDate(s.jour)} — ${s.demandes} demande(s)`}
+                  />
+                  <div
+                    className="w-full max-w-[10px] rounded-t bg-ink/25 transition-all group-hover:bg-ink/40"
+                    style={{ height: `${Math.max(2, (s.reservations / maxSeries) * 100)}%` }}
+                    title={`${frDate(s.jour)} — ${s.reservations} réservation(s)`}
+                  />
+                </div>
+                <span className="text-[9px] text-muted">{s.jour.slice(8)}</span>
+              </div>
+            ))}
           </div>
-          <p className="mt-2 text-[11px] text-muted">
-            Données issues de la base PostgreSQL — aucune valeur simulée.
-          </p>
+
+          <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-4 text-center">
+            <div>
+              <p className="text-lg font-bold tabular-nums">{k.leads_week}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted">demandes 7 j</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold tabular-nums">{k.bookings_upcoming}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted">séances à venir</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold tabular-nums">{hours(k.time_week)}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted">temps travaillé</p>
+            </div>
+          </div>
         </section>
 
-        <section className="card p-5">
-          <h2 className="font-semibold">Répartition des demandes</h2>
-          <ul className="mt-4 space-y-3 text-sm">
-            {[
-              { label: 'Nouvelles', value: data.leads.nouvelles, tone: 'bg-brand' },
-              { label: 'En cours', value: data.leads.en_cours, tone: 'bg-ink/40' },
-              { label: 'Gagnées', value: data.leads.gagnees, tone: 'bg-emerald-500' },
-            ].map((row) => {
-              const total = Math.max(1, data.leads.total);
-              const pct = Math.round((row.value / total) * 100);
-              return (
-                <li key={row.label}>
-                  <div className="flex items-center justify-between text-xs">
-                    <span>{row.label}</span>
-                    <span className="tabular-nums text-muted">
-                      {row.value} · {pct}%
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-line">
-                    <div className={`h-full rounded-full ${row.tone}`} style={{ width: `${pct}%` }} />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          <Link to="/admin/demandes" className="mt-5 inline-block text-xs font-medium text-brand hover:underline">
-            Ouvrir les demandes
-          </Link>
-        </section>
+        <div className="space-y-4">
+          <section className="rounded-2xl border border-line bg-paper p-5">
+            <h2 className="font-semibold">Pipeline commercial</h2>
+            <ul className="mt-3 space-y-2.5">
+              {data.statuses.length === 0 && <li className="text-xs text-muted">Aucune demande.</li>}
+              {data.statuses.map((s) => {
+                const pct = k.leads_total ? Math.round((s.n / k.leads_total) * 100) : 0;
+                return (
+                  <li key={s.status}>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="capitalize">{STATUS_FR[s.status] ?? s.status}</span>
+                      <span className="tabular-nums text-muted">
+                        {s.n} · {pct} %
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-line">
+                      <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <Link to="/admin/demandes" className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+              Ouvrir les demandes <ArrowUpRight className="size-3" />
+            </Link>
+          </section>
+
+          <section className="rounded-2xl border border-line bg-paper p-5">
+            <h2 className="font-semibold">Catalogue</h2>
+            <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+              {[
+                { k: 'Services', v: data.catalog.services },
+                { k: 'Réalisations', v: data.catalog.projets },
+                { k: 'Modèles', v: data.catalog.modeles },
+              ].map((x) => (
+                <div key={x.k} className="rounded-xl bg-wash p-2.5">
+                  <dd className="text-lg font-bold tabular-nums">{x.v}</dd>
+                  <dt className="text-[10px] uppercase tracking-wider text-muted">{x.k}</dt>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted">
+              <Users className="size-3" /> {k.subscribers_confirmed} abonné(s) confirmé(s)
+            </p>
+          </section>
+        </div>
       </div>
 
-      <section className="card mt-6 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-line px-5 py-4">
-          <h2 className="font-semibold">Activité récente</h2>
-          <Link to="/admin/automatisations" className="text-xs text-brand hover:underline">
-            Voir les automatisations
-          </Link>
-        </div>
-        {data.activity.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-muted">
-            Aucune activité pour l’instant. Les demandes et réservations apparaîtront ici.
-          </p>
-        ) : (
+      {/* ------------------------------------------------ échéances + journal */}
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+          <div className="flex items-center justify-between border-b border-line px-5 py-4">
+            <h2 className="font-semibold">À traiter</h2>
+            <Link to="/admin/taches" className="text-xs text-brand hover:underline">
+              toutes les tâches
+            </Link>
+          </div>
+          {data.tasksSoon.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-muted">Aucune tâche en attente. Rien ne traîne.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {data.tasksSoon.map((t) => {
+                const late = t.due_date && new Date(t.due_date) < new Date();
+                return (
+                  <li key={t.id}>
+                    <Link to={`/admin/projets/${t.project_id}`} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-wash">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm">{t.title}</p>
+                        <p className="text-[11px] text-muted">{t.project_name}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        {t.due_date && (
+                          <p className={`text-[11px] ${late ? 'font-medium text-brand' : 'text-muted'}`}>{frDate(t.due_date)}</p>
+                        )}
+                        {t.priority === 'urgent' && <p className="text-[10px] uppercase tracking-wider text-brand">urgent</p>}
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+          <div className="border-b border-line px-5 py-4">
+            <h2 className="font-semibold">Dernières activités</h2>
+          </div>
           <ul className="divide-y divide-line">
             {data.activity.map((a) => (
-              <li key={`${a.type}-${a.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm">
-                <span>
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-brand">
-                    {a.type === 'lead' ? 'demande' : 'réservation'}
-                  </span>
-                  <span className="ml-3">{a.label}</span>
-                </span>
-                <span className="text-xs text-muted">
+              <li key={`${a.type}-${a.id}`} className="flex items-center justify-between gap-3 px-5 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm">
+                    <span className="text-[10px] uppercase tracking-wider text-muted">{TYPE_FR[a.type] ?? a.type}</span>{' '}
+                    {a.label}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[11px] text-muted">
                   {STATUS_FR[a.status] ?? a.status} · {frDateTime(a.created_at)}
                 </span>
               </li>
             ))}
+            {data.activity.length === 0 && <li className="px-5 py-6 text-sm text-muted">Aucune activité.</li>}
           </ul>
-        )}
-      </section>
+        </section>
+      </div>
+
+      <p className="mt-6 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+        <Banknote className="size-3" aria-hidden /> Build. Innovate. Grow.
+      </p>
     </div>
   );
 }

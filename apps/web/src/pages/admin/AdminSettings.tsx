@@ -7,7 +7,7 @@ import type { Settings } from '../../lib/types';
 
 export default function AdminSettings() {
   const qc = useQueryClient();
-  const { data } = useSettings();
+  const initial = useSettings();
   const [form, setForm] = useState({
     name: '',
     tagline: '',
@@ -21,19 +21,19 @@ export default function AdminSettings() {
   });
 
   useEffect(() => {
-    if (!data) return;
+    if (!initial) return;
     setForm({
-      name: data.studio?.name ?? '',
-      tagline: data.studio?.tagline ?? '',
-      phone: data.studio?.phone ?? '',
-      whatsapp: data.studio?.whatsapp ?? '',
-      email: data.studio?.email ?? '',
-      address: data.studio?.address ?? '',
-      hours: data.studio?.hours ?? '',
-      base: data.currencies?.base ?? 'USD',
-      usd_to_cdf: data.currencies?.usd_to_cdf ? String(data.currencies.usd_to_cdf) : '',
+      name: initial?.studio?.name ?? '',
+      tagline: initial?.studio?.tagline ?? '',
+      phone: initial?.studio?.phone ?? '',
+      whatsapp: initial?.studio?.whatsapp ?? '',
+      email: initial?.studio?.email ?? '',
+      address: initial?.studio?.address ?? '',
+      hours: initial?.studio?.hours ?? '',
+      base: initial?.currencies?.base ?? 'USD',
+      usd_to_cdf: initial?.currencies?.usd_to_cdf ? String(initial?.currencies.usd_to_cdf) : '',
     });
-  }, [data]);
+  }, [initial]);
 
   const save = useMutation({
     mutationFn: () =>

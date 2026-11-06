@@ -2,16 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Identité 5DEV : orange #F47721, blanc, noir #171717 (source de vérité du brief). */
+/* ============================================================================
+   TOKENS 5DEV — palette officielle, aucune autre teinte n'est autorisée.
+   Orange #F47721 · Noir #171717 · Blanc #FFFFFF · Gris #F5F5F5 · Texte sec. #737373
+   Ces variables reflètent tailwind.config.js (source unique côté build).
+   ========================================================================== */
 :root {
   --brand: #f47721;
   --brand-600: #d9610f;
   --ink: #171717;
   --ink-soft: #2a2a2a;
   --paper: #ffffff;
-  --muted: #6b6b6b;
+  --muted: #737373;
   --line: #e6e2dd;
-  --wash: #faf8f5;
+  --wash: #f5f5f5;
 }
 
 @layer base {
@@ -88,7 +92,7 @@
   }
 
   .label {
-    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-[#6b6b6b];
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted;
   }
 
   .card {

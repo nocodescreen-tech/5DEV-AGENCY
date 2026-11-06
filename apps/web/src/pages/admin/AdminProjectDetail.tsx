@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Clock, Paperclip, Pause, Play, Plus, StickyNote } from 'lucide-react';
+import { ArrowLeft, Bot, Clock, Paperclip, Pause, Pencil, Play, Plus, StickyNote } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '../../lib/api';
 import { frDate, frDateTime } from '../../lib/format';
 
@@ -36,6 +36,7 @@ type Detail = {
     due_date: string | null;
     budget_amount: string | null;
     budget_currency: 'USD' | 'CDF';
+    objectives?: string;
     progress: number;
   };
   stages: Stage[];
@@ -74,6 +75,18 @@ export default function AdminProjectDetail() {
   const [note, setNote] = useState({ kind: 'note', title: '', body: '' });
   const [doc, setDoc] = useState({ name: '', url: '', kind: 'link', is_shared: false });
   const [aiText, setAiText] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    client_name: '',
+    category: 'dev-web',
+    priority: 'normal',
+    start_date: '',
+    due_date: '',
+    budget_amount: '',
+    description: '',
+    objectives: '',
+  });
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['pm-project', id],
@@ -85,6 +98,25 @@ export default function AdminProjectDetail() {
     queryKey: ['time-running'],
     queryFn: () => apiGet<{ id: string; project_id: string; started_at: string } | null>('/api/v1/admin/pm/time/running'),
     refetchInterval: 30_000,
+  });
+
+  const saveProject = useMutation({
+    mutationFn: () =>
+      apiPatch(`/api/v1/admin/pm/projects/${id}`, {
+        name: editForm.name,
+        client_name: editForm.client_name || null,
+        category: editForm.category,
+        priority: editForm.priority,
+        start_date: editForm.start_date || null,
+        due_date: editForm.due_date || null,
+        budget_amount: editForm.budget_amount ? Number(editForm.budget_amount) : null,
+        description: editForm.description,
+        objectives: editForm.objectives,
+      }),
+    onSuccess: () => {
+      setEditing(false);
+      invalidate();
+    },
   });
 
   const invalidate = () => {
@@ -191,6 +223,27 @@ export default function AdminProjectDetail() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="btn-ghost !py-2 text-xs"
+            onClick={() => {
+              setEditForm({
+                name: p.name,
+                client_name: p.client_name ?? '',
+                category: p.category,
+                priority: p.priority,
+                start_date: p.start_date ?? '',
+                due_date: p.due_date ?? '',
+                budget_amount: p.budget_amount ? String(Math.round(Number(p.budget_amount))) : '',
+                description: p.description ?? '',
+                objectives: p.objectives ?? '',
+              });
+              setEditing((v) => !v);
+            }}
+          >
+            <Pencil className="size-3.5" /> Modifier
+          </button>
+
           <select
             className="field !w-auto !py-2 text-xs"
             value={p.status}
@@ -241,6 +294,75 @@ export default function AdminProjectDetail() {
           <span>{data.tasks.filter((t) => t.status === 'blocked').length} bloquée(s)</span>
         </div>
       </div>
+
+      {editing && (
+        <form
+          className="mt-4 card p-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveProject.mutate();
+          }}
+        >
+          <h2 className="font-semibold">Modifier le projet</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <label className="label" htmlFor="e-name">Nom</label>
+              <input id="e-name" className="field" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+            </div>
+            <div>
+              <label className="label" htmlFor="e-client">Client</label>
+              <input id="e-client" className="field" value={editForm.client_name} onChange={(e) => setEditForm({ ...editForm, client_name: e.target.value })} placeholder="vide = projet interne" />
+            </div>
+            <div>
+              <label className="label" htmlFor="e-cat">Catégorie</label>
+              <select id="e-cat" className="field" value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
+                <option value="dev-web">Développement web</option>
+                <option value="app-web">Application web</option>
+                <option value="photo">Photographie</option>
+                <option value="marketing">Marketing</option>
+                <option value="infra">Infrastructure</option>
+                <option value="interne">Projet interne</option>
+                <option value="recherche">Recherche</option>
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="e-prio">Priorité</label>
+              <select id="e-prio" className="field" value={editForm.priority} onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}>
+                <option value="low">Basse</option>
+                <option value="normal">Normale</option>
+                <option value="high">Haute</option>
+                <option value="urgent">Urgente</option>
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="e-budget">Budget (USD)</label>
+              <input id="e-budget" className="field" inputMode="numeric" value={editForm.budget_amount} onChange={(e) => setEditForm({ ...editForm, budget_amount: e.target.value.replace(/[^0-9]/g, '') })} />
+            </div>
+            <div>
+              <label className="label" htmlFor="e-start">Début</label>
+              <input id="e-start" type="date" className="field" value={editForm.start_date} onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })} />
+            </div>
+            <div>
+              <label className="label" htmlFor="e-due">Échéance</label>
+              <input id="e-due" type="date" className="field" value={editForm.due_date} onChange={(e) => setEditForm({ ...editForm, due_date: e.target.value })} />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="label" htmlFor="e-desc">Description</label>
+              <textarea id="e-desc" className="field min-h-20" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="label" htmlFor="e-obj">Objectifs / livrables attendus</label>
+              <textarea id="e-obj" className="field min-h-16" value={editForm.objectives} onChange={(e) => setEditForm({ ...editForm, objectives: e.target.value })} />
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button type="submit" className="btn-primary !py-2.5" disabled={saveProject.isPending || editForm.name.length < 2}>
+              Enregistrer les modifications
+            </button>
+            <button type="button" className="btn-ghost !py-2.5" onClick={() => setEditing(false)}>Annuler</button>
+          </div>
+        </form>
+      )}
 
       {aiText && (
         <div className="mt-4 card p-4">

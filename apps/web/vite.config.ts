@@ -20,5 +20,14 @@ export default defineConfig({
       '/healthz': { target: 'http://127.0.0.1:4000', changeOrigin: true },
     },
   },
+  // `vite preview` sert le build : on garde le même proxy pour que les mesures
+  // de performance portent sur l'application réellement alimentée.
+  preview: {
+    port: 4173,
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:4000', changeOrigin: true },
+      '/healthz': { target: 'http://127.0.0.1:4000', changeOrigin: true },
+    },
+  },
   build: { outDir: 'dist', sourcemap: false },
 });

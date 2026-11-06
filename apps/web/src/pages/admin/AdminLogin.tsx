@@ -37,7 +37,7 @@ export default function AdminLogin() {
           5<span className="text-brand">DEV</span>
         </Link>
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-brand">Studio management</p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-brand">Agence management</p>
           <h1 className="mt-4 text-4xl font-black leading-tight">
             L’espace de travail
             <br />

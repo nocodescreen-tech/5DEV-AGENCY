@@ -9,6 +9,7 @@ import {
   ChevronsRight,
   FolderKanban,
   Inbox,
+  MessageSquare,
   LayoutDashboard,
   LogOut,
   Mails,
@@ -22,7 +23,17 @@ import {
 import { apiGet, apiPost } from '../../lib/api';
 import ThemeToggle from '../../components/ThemeToggle';
 
-type Me = { user: { id: string; email: string; full_name: string; role: string } };
+type Me = {
+  user: {
+    id: string;
+    email: string;
+    full_name: string;
+    display_name?: string | null;
+    avatar_url?: string | null;
+    job_title?: string | null;
+    role: string;
+  };
+};
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean };
 type NavGroup = { title: string; items: NavItem[] };
@@ -52,7 +63,14 @@ const GROUPS: NavGroup[] = [
       { to: '/admin/realisations', label: 'Réalisations', icon: FolderKanban },
     ],
   },
-  { title: 'Intelligence artificielle', items: [{ to: '/admin/ia', label: 'IA & modèles', icon: Bot }] },
+  {
+    title: 'Intelligence artificielle',
+    items: [
+      { to: '/admin/ia/chat', label: 'AI Chat', icon: MessageSquare },
+      { to: '/admin/ia/modeles', label: 'Modèles & clé', icon: Bot },
+      { to: '/admin/ia', label: 'Tâches et usage', icon: Sparkles, end: true },
+    ],
+  },
   { title: 'Marketing', items: [{ to: '/admin/newsletter', label: 'Newsletter', icon: Send }] },
   { title: 'Communication', items: [{ to: '/admin/emails', label: 'Emails', icon: Mails }] },
   { title: 'Automatisation', items: [{ to: '/admin/automatisations', label: 'Workflows', icon: Sparkles }] },
@@ -87,6 +105,9 @@ export default function AdminLayout() {
     enabled: Boolean(data?.user),
     refetchInterval: 60_000,
   });
+
+  const avatar = data?.user.avatar_url ?? null;
+  const who = data?.user.display_name ?? data?.user.full_name ?? data?.user.email ?? '';
 
   if (isPending) {
     return (
@@ -172,7 +193,22 @@ export default function AdminLayout() {
               )}
             </div>
 
-            <span className="hidden text-xs text-muted sm:block">{data?.user.email}</span>
+            <Link to="/admin/profil" className="group flex items-center gap-2" title="Mon profil">
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="size-7 rounded-full border border-line object-cover"
+                />
+              ) : (
+                <span className="flex size-7 items-center justify-center rounded-full bg-ink text-[10px] font-bold text-white">
+                  {who.slice(0, 2).toUpperCase()}
+                </span>
+              )}
+              <span className="hidden max-w-[160px] truncate text-xs text-muted group-hover:text-ink sm:block">{who}</span>
+            </Link>
             <button
               type="button"
               onClick={() => void logout()}

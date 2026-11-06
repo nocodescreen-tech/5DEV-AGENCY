@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Check, Mail, MapPin, Phone } from 'lucide-react';
 import { apiPost, ApiRequestError } from '../lib/api';
+import { useToast } from '../components/Toaster';
 import { useSettings } from '../components/SiteLayout';
 
 export default function Contact() {
-  const { data } = useSettings();
-  const studio = data?.studio;
+  const settings = useSettings();
+  const studio = settings?.studio;
   const [form, setForm] = useState({ contact_name: '', contact_email: '', contact_phone: '', message: '' });
   const [sent, setSent] = useState<string | null>(null);
+  const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
@@ -23,6 +25,7 @@ export default function Contact() {
         ...form,
       });
       setSent(res.reference);
+      toast.push('success', 'Message envoyé — nous revenons vers vous rapidement.');
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'Envoi impossible.');
     } finally {

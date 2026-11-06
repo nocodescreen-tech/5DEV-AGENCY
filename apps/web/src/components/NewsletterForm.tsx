@@ -19,7 +19,7 @@ export default function NewsletterForm() {
       setMessage(
         res.emailSent
           ? 'Vérifiez votre boîte mail : un lien de confirmation vient d’être envoyé.'
-          : 'Inscription enregistrée. La confirmation par email n’a pas pu être envoyée : contactez le studio.',
+          : 'Inscription enregistrée. La confirmation par email n’a pas pu être envoyée : contactez l’agence.',
       );
       setEmail('');
     } catch (err) {

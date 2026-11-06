@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { apiGet, apiPost, ApiRequestError } from '../lib/api';
 import type { Category, Service } from '../lib/types';
+import { useToast } from '../components/Toaster';
 import { money } from '../lib/format';
 
 type Form = {
@@ -35,6 +36,7 @@ export default function Devis() {
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [reference, setReference] = useState<string | null>(null);
+  const toast = useToast();
   const [sending, setSending] = useState(false);
 
   const { data } = useQuery({
@@ -72,6 +74,7 @@ export default function Devis() {
       };
       const res = await apiPost<{ reference: string }>('/api/v1/leads', payload);
       setReference(res.reference);
+      toast.push('success', `Demande de devis enregistrée — référence ${res.reference}.`);
     } catch (err) {
       if (err instanceof ApiRequestError) {
         setError(err.message);

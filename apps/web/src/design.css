@@ -1,0 +1,332 @@
+/* ==================================================== DESIGN SYSTEM v2 ==== */
+/* Direction artistique 5DEV : éditorial, dense, contrasté. Tout ce qui bouge
+   n'utilise que transform / opacity (composited) pour rester fluide sur mobile. */
+
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow-card: 0 1px 2px rgb(23 23 23 / 0.04), 0 8px 24px -12px rgb(23 23 23 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(23 23 23 / 0.05), 0 18px 40px -16px rgb(23 23 23 / 0.22);
+}
+
+/* --- échelle typographique éditoriale (fluide, sans media queries) --- */
+.display-1 {
+  font-size: clamp(2.6rem, 7vw, 5.4rem);
+  line-height: 0.94;
+  letter-spacing: -0.045em;
+  font-weight: 800;
+}
+.display-2 {
+  font-size: clamp(2rem, 4.4vw, 3.4rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 800;
+}
+.display-3 {
+  font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+.eyebrow {
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.lead {
+  font-size: clamp(1rem, 1.35vw, 1.1875rem);
+  line-height: 1.6;
+}
+.serif {
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- médias : shimmer + fondu au chargement --- */
+.media {
+  position: relative;
+  overflow: hidden;
+  background: rgb(23 23 23 / 0.08);
+  border-radius: inherit;
+}
+.media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.35) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: shimmer 1.4s var(--ease-soft) infinite;
+  pointer-events: none;
+}
+.media.is-loaded::after {
+  display: none;
+}
+.media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.02);
+  transition: opacity 0.7s var(--ease-out), transform 1.2s var(--ease-out);
+}
+.media.is-loaded img {
+  opacity: 1;
+  transform: none;
+}
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* --- révélation au défilement (classe posée par IntersectionObserver) --- */
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+/* filet de sécurité : si l'observateur ne s'exécute pas, tout reste lisible */
+.reveal-fallback .reveal {
+  opacity: 1;
+  transform: none;
+}
+
+/* --- carte 3D (inclinaison au pointeur, CSS only) --- */
+.tilt {
+  transform-style: preserve-3d;
+  transition: transform 0.45s var(--ease-out), box-shadow 0.45s var(--ease-out);
+}
+.tilt-inner {
+  transform: translateZ(24px);
+}
+.tilt:hover {
+  box-shadow: var(--shadow-lift);
+}
+
+/* --- cartes interactives --- */
+.card-hover {
+  position: relative;
+  transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), border-color 0.35s var(--ease-out);
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lift);
+}
+
+/* --- boutons : micro-interactions --- */
+.btn-primary,
+.btn-ghost {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s var(--ease-out), box-shadow 0.25s var(--ease-out), background-color 0.2s;
+}
+.btn-primary:active,
+.btn-ghost:active {
+  transform: scale(0.985);
+}
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgb(255 255 255 / 0.28), transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.6s var(--ease-out);
+}
+.btn-primary:hover::before {
+  transform: translateX(120%);
+}
+
+/* soulignement progressif des liens de navigation */
+.nav-link {
+  position: relative;
+  transition: color 0.2s;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  height: 1.5px;
+  width: 100%;
+  background: var(--brand, #f47721);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s var(--ease-out);
+}
+.nav-link:hover::after,
+.nav-link[aria-current='page']::after {
+  transform: scaleX(1);
+}
+
+/* --- accordéon FAQ --- */
+.acc-item {
+  border-bottom: 1px solid rgb(23 23 23 / 0.1);
+}
+.acc-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 0;
+  text-align: left;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+.acc-trigger:hover {
+  color: #f47721;
+}
+.acc-icon {
+  transition: transform 0.35s var(--ease-out);
+  flex-shrink: 0;
+}
+.acc-item[data-open='true'] .acc-icon {
+  transform: rotate(45deg);
+}
+.acc-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.4s var(--ease-out);
+}
+.acc-item[data-open='true'] .acc-panel {
+  grid-template-rows: 1fr;
+}
+.acc-panel > div {
+  overflow: hidden;
+}
+.acc-panel p {
+  padding-bottom: 1.15rem;
+  max-width: 62ch;
+}
+
+/* --- carrousel (scroll-snap, sans librairie) --- */
+.rail {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding-bottom: 0.5rem;
+}
+.rail::-webkit-scrollbar {
+  display: none;
+}
+.rail > * {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+}
+
+/* --- toasts --- */
+.toast {
+  animation: toast-in 0.4s var(--ease-out) both;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.toast[data-leaving='true'] {
+  animation: toast-out 0.3s var(--ease-soft) both;
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* --- modale --- */
+.modal-backdrop {
+  animation: fade-in 0.25s var(--ease-soft) both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.modal-panel {
+  animation: modal-in 0.35s var(--ease-out) both;
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- transitions de page (montage) --- */
+.page-enter {
+  animation: page-in 0.5s var(--ease-out) both;
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- états vides / erreurs --- */
+.empty-state {
+  border: 1px dashed rgb(23 23 23 / 0.14);
+  border-radius: 1rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+/* --- respect strict de prefers-reduced-motion --- */
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal.is-in {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .media img {
+    transition: none !important;
+  }
+  .media::after {
+    animation: none !important;
+    display: none !important;
+  }
+  .tilt,
+  .card-hover,
+  .btn-primary,
+  .btn-ghost {
+    transition: none !important;
+  }
+  .page-enter,
+  .toast,
+  .modal-panel,
+  .modal-backdrop {
+    animation: none !important;
+  }
+  .acc-panel {
+    transition: none !important;
+  }
+}

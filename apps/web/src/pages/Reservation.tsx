@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Check } from 'lucide-react';
 import { apiGet, apiPost, ApiRequestError } from '../lib/api';
 import type { Category, Service } from '../lib/types';
+import { useToast } from '../components/Toaster';
 import { frDate } from '../lib/format';
 
 type Slot = { slot: 'morning' | 'afternoon' | 'evening'; label: string; available: boolean };
@@ -22,6 +23,7 @@ export default function Reservation() {
     service_slug: '',
   });
   const [reference, setReference] = useState<string | null>(null);
+  const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
@@ -57,6 +59,7 @@ export default function Reservation() {
         notes: form.notes || undefined,
       });
       setReference(res.reference);
+      toast.push('success', `Demande de séance enregistrée — référence ${res.reference}.`);
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'Réservation impossible pour le moment.');
     } finally {
@@ -75,7 +78,7 @@ export default function Reservation() {
           <p className="mt-3 text-sm text-ink/65">
             Référence <strong className="font-mono">{reference}</strong> — {frDate(date)},{' '}
             {slot === 'morning' ? 'matin' : slot === 'afternoon' ? 'après-midi' : 'soirée'}.
-            Le studio confirme le créneau par téléphone ou WhatsApp.
+            L’agence confirme le créneau par téléphone ou WhatsApp.
           </p>
           <Link to="/" className="btn-ghost mt-7">
             Retour à l’accueil
@@ -209,7 +212,7 @@ export default function Reservation() {
                 className="field"
                 value={form.location}
                 onChange={(e) => set('location', e.target.value)}
-                placeholder="Studio, extérieur, domicile…"
+                placeholder="Agence, extérieur, domicile…"
               />
             </div>
           </div>
@@ -242,7 +245,7 @@ export default function Reservation() {
             {sending ? 'Envoi…' : 'Demander ce créneau'}
           </button>
           <p className="text-center text-xs text-muted">
-            La réservation est confirmée par le studio. Aucun paiement en ligne à cette étape.
+            La réservation est confirmée par l’agence. Aucun paiement en ligne à cette étape.
           </p>
         </div>
       </div>

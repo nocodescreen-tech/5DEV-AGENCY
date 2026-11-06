@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: '#f47721',
+        brand: '#f47721',  // token 5DEV — source unique avec index.css :root
         brandDark: '#d9610f',
         ink: '#171717',
         inkSoft: '#2a2a2a',

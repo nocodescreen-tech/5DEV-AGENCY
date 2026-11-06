@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useSettings } from '../components/SiteLayout';
-import Reveal from '../components/Reveal';
+import { Reveal } from '../components/ui';
 
 const PRINCIPES = [
   {
     title: 'Un interlocuteur unique',
-    text: 'Le même studio conçoit, développe, met en ligne et photographie. Pas de chaîne d’intermédiaires.',
+    text: 'La même équipe conçoit, développe, met en ligne et photographie. Pas de chaîne d’intermédiaires.',
   },
   {
     title: 'Ce qui est écrit est livré',
@@ -22,14 +22,14 @@ const PRINCIPES = [
 ];
 
 export default function APropos() {
-  const { data } = useSettings();
-  const studio = data?.studio;
+  const settings = useSettings();
+  const studio = settings?.studio;
 
   return (
     <div className="container-x py-14 sm:py-20">
       <p className="eyebrow">À propos</p>
       <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
-        5DEV, un studio digital basé à Matadi.
+        5DEV, une agence numérique basée à Matadi.
       </h1>
       <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink/70">
         5DEV accompagne les entreprises, institutions et créateurs de la région sur tout ce qui

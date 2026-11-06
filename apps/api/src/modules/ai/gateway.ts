@@ -157,7 +157,7 @@ export async function runTask(
   ];
 
   // Sans clé : repli explicite en développement, erreur franche en production.
-  if (!nvidiaReady()) {
+  if (!(await nvidiaReady())) {
     if (config.NODE_ENV === 'production') {
       throw new Error('Fournisseur IA non configuré (NVIDIA_API_KEY absente).');
     }
@@ -258,7 +258,7 @@ export async function aiStatus(): Promise<{
 }> {
   let models: string[] = [];
   let modelsError: string | null = null;
-  if (nvidiaReady()) {
+  if (await nvidiaReady()) {
     try {
       models = await listModels();
     } catch (err) {
@@ -276,7 +276,7 @@ export async function aiStatus(): Promise<{
   ).catch(() => null);
 
   return {
-    ready: nvidiaReady(),
+    ready: await nvidiaReady(),
     environment: config.NODE_ENV,
     provider: 'nvidia-nim',
     models,

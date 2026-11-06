@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
  * (user_prefs) pour survivre à une reconnexion sur un autre poste.
  */
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type Accent = 'orange' | 'amber' | 'rose';
+export type Accent = 'orange' | 'amber' | 'cuivre';
 export type Density = 'comfortable' | 'compact';
 
 const KEY = 'five.theme';
@@ -24,8 +24,9 @@ const ThemeCtx = createContext<Ctx | null>(null);
 
 const ACCENTS: Record<Accent, { main: string; dark: string }> = {
   orange: { main: '#F47721', dark: '#D9610F' },
-  amber: { main: '#E4A11B', dark: '#C4860F' },
-  rose: { main: '#E2585F', dark: '#C43F46' },
+  // Deux déclinaisons seulement, pour rester dans l'identité (orange → ambre chaud / cuivre)
+  amber: { main: '#D98A2B', dark: '#B4701D' },
+  cuivre: { main: '#C2601F', dark: '#9C4A15' },
 };
 
 function systemPref(): 'light' | 'dark' {
@@ -40,7 +41,7 @@ function readPrefs(): { theme: ThemeMode; accent: Accent; density: Density } {
       const p = JSON.parse(raw) as Partial<{ theme: ThemeMode; accent: Accent; density: Density }>;
       return {
         theme: p.theme === 'dark' || p.theme === 'light' || p.theme === 'system' ? p.theme : 'system',
-        accent: p.accent === 'amber' || p.accent === 'rose' ? p.accent : 'orange',
+        accent: p.accent === 'amber' || p.accent === 'orange' ? p.accent : 'orange',
         density: p.density === 'compact' ? 'compact' : 'comfortable',
       };
     }

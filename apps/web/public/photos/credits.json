@@ -1,0 +1,41 @@
+{
+  "note": "Photographies réelles sous licence Pexels. Elles illustrent des situations de travail et ne représentent pas des réalisations livrées par 5DEV.",
+  "photos": [
+    {
+      "file": "accueil-conseil-{900,1600}.webp",
+      "source": "Pexels",
+      "id": "3869652",
+      "page": "https://www.pexels.com/photo/3869652/",
+      "license": "Pexels License",
+      "alt": "Consultante 5DEV au travail devant son ordinateur",
+      "role": "hero"
+    },
+    {
+      "file": "equipe-projet-{900,1600}.webp",
+      "source": "Pexels",
+      "id": "3894383",
+      "page": "https://www.pexels.com/photo/3894383/",
+      "license": "Pexels License",
+      "alt": "Trois membres de l’équipe travaillent ensemble sur un projet",
+      "role": "team"
+    },
+    {
+      "file": "atelier-client-{900,1600}.webp",
+      "source": "Pexels",
+      "id": "4990541",
+      "page": "https://www.pexels.com/photo/4990541/",
+      "license": "Pexels License",
+      "alt": "Échange de travail entre deux membres de l’équipe",
+      "role": "workshop"
+    },
+    {
+      "file": "photographe-en-action-{900,1600}.webp",
+      "source": "Pexels",
+      "id": "30173129",
+      "page": "https://www.pexels.com/photo/30173129/",
+      "license": "Pexels License",
+      "alt": "Photographe en pleine prise de vue",
+      "role": "photo"
+    }
+  ]
+}

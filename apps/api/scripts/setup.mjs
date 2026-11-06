@@ -173,6 +173,10 @@ const eco = readFileSync(join(here, '../src/db/schema-ecosystem.sql'), 'utf8');
 await client.query(eco);
 const ws = readFileSync(join(here, '../src/db/schema-workspace.sql'), 'utf8');
 await client.query(ws);
+const chat = readFileSync(join(here, '../src/db/schema-ai-chat.sql'), 'utf8');
+await client.query(chat);
+const prof = readFileSync(join(here, '../src/db/schema-profile.sql'), 'utf8');
+await client.query(prof);
 console.log('✓ schéma appliqué (base + écosystème + workspace)');
 
 // 2. compte propriétaire

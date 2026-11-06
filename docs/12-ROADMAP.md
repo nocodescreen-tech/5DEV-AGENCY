@@ -93,3 +93,20 @@ Le tableau ci-dessous est la source de vérité de l'avancement (à tenir à jou
 | 5 — Industrialisation | tests, sécurité, monitoring, sauvegardes, production | **à faire** : CI, métriques, alerting, sauvegarde automatisée | doc 20 |
 
 Documents associés : `14` à `20`.
+
+## Module 5DEV WORKSPACE (06/11/2026)
+
+| Élément | État | Preuve |
+|---|---|---|
+| Projets clients et internes | **fait** | 23 contrôles fonctionnels, projet créé en base |
+| Workflows par étapes + 7 modèles | **fait** | 5 étapes générées depuis « Site vitrine » |
+| Tâches, statuts, Kanban (drag → base) | **fait** | PATCH vérifié, statut relu |
+| Dépendances + refus de cycle | **fait** | cycle renvoyé en 409 |
+| Progression pondérée calculée | **fait** | 1 tâche sur 5 étapes → 18 %, pas 100 % |
+| Chronomètre + saisie manuelle + rapport | **fait** | session 1 min, total 91 min, une seule session ouverte |
+| Documents, notes, activité | **fait** | 9 entrées d’activité sur un projet de test |
+| Assistant IA (résumé, plan) | **fait côté code** | `stubbed: true` sans clé NVIDIA |
+| Automatisations Workspace (échéances, blocages) | **non branché** | doc 25 : déclencheurs temporels à ajouter |
+| Gantt, calendrier, upload fichiers, modèles éditables | **non fait** | docs 21 à 23, écarts listés |
+
+Documents : `21` à `26`.

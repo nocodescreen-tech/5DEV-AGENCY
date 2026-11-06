@@ -53,6 +53,12 @@ Le `weight` (1 à 10) pèse dans le calcul de progression du projet (doc 21). Un
 photographique peut donc valoriser le shooting à 4 et la livraison à 1, sans que la formule
 change.
 
+## Jalons (ajout)
+
+`milestones(project_id, name, description, due_date, status pending|reached|missed, reached_at)`.
+Un jalon n'est pas une étape : il marque un engagement daté (maquettes validées, livraison
+partielle). Il apparaît dans le calendrier et se valide en un clic depuis la fiche projet.
+
 ## Ce qui n’est pas fait
 
 1. **Dépendances entre étapes** : seules les dépendances **entre tâches** existent

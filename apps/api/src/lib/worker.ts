@@ -88,9 +88,25 @@ async function tick(): Promise<void> {
   }
 }
 
+let lastDueScan = 0;
+
 export function startWorker(intervalMs = 5000): void {
   if (timer) return;
-  timer = setInterval(() => void tick(), intervalMs);
+  timer = setInterval(() => {
+    void tick();
+    // une fois par heure : rappels d'échéance (scan idempotent par jour et par tâche)
+    if (Date.now() - lastDueScan > 60 * 60_000) {
+      lastDueScan = Date.now();
+      void import('../modules/workspace-plan.js')
+        .then(({ scanDueTasks }) => scanDueTasks())
+        .then((r) => {
+          if (r.late || r.soon) {
+            console.log(`[worker] rappels : ${r.late} en retard, ${r.soon} échéance(s) proche(s)`);
+          }
+        })
+        .catch((err) => console.error('[worker] scan des échéances impossible', err));
+    }
+  }, intervalMs);
   timer.unref();
 }
 

@@ -66,6 +66,19 @@ un projet « artificiellement fini ».
 | `POST /time/start`, `/time/stop`, `/time/manual`, `GET /time/report` | temps de travail |
 | `POST /projects/:id/ai/summary`, `/ai/plan` | assistant IA (projet) |
 
+## Ajouts du 06/11 (après le premier jet)
+
+| Fonction | État | Détail |
+|---|---|---|
+| Jalons | **fait** | table `milestones`, création, validation horodatée, affichage dans le calendrier |
+| Planning | **fait** | page `/admin/planning` : calendrier mensuel (tâches, jalons, séances photo) + chronologie |
+| Chronologie (Gantt) | **fait (simple)** | barres proportionnelles aux dates réelles, retard en orange ; pas de dépendances dessinées |
+| Affectation | **fait** | `/admin/pm/team` renvoie membres réels + charge (tâches ouvertes, minutes estimées) ; sélecteur sur chaque carte Kanban |
+| Modèles gérables | **fait** | page `/admin/modeles` : création, duplication, archivage, réactivation |
+| Rappels d'échéance | **fait** | scan horaire idempotent (clé `reminder_log` par tâche et par jour) → notifications ciblées |
+| Sous-tâches | **partiel** | `parent_id` en base et index, interface encore à plat |
+| Pièces jointes de tâche | **partiel** | colonne `task_id` sur `project_documents`, interface projet seulement |
+
 ## Écarts assumés
 
 1. **Gantt et calendrier graphiques** : non faits. Les dates existent, les vues sont la liste

@@ -11,6 +11,7 @@ import { newsletterRouter } from './modules/newsletter.js';
 import { automationRouter } from './modules/automation.js';
 import { prefsRouter } from './modules/prefs.js';
 import { workspaceRouter } from './modules/workspace.js';
+import { workspacePlanRouter } from './modules/workspace-plan.js';
 import { aiChatRouter } from './modules/ai-chat.js';
 import { profileRouter } from './modules/profile.js';
 import { errorHandler, notFound } from './middlewares/errors.js';
@@ -53,6 +54,7 @@ export function createApp(): Express {
   app.use('/api/v1', automationRouter);
   app.use('/api/v1', prefsRouter);
   app.use('/api/v1', workspaceRouter);
+  app.use('/api/v1', workspacePlanRouter);
   app.use('/api/v1', aiChatRouter);
   app.use('/api/v1', profileRouter);
   app.use(healthRouter); // /healthz à la racine pour les sondes d'hébergeur

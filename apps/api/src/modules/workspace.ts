@@ -416,7 +416,7 @@ workspaceRouter.get('/admin/pm/tasks', requireAdmin, async (req, res, next) => {
          from tasks t
          join projects_pm p on p.id = t.project_id
          left join project_stages s on s.id = t.stage_id
-        where t.deleted_at is null
+        where t.deleted_at is null and p.deleted_at is null
           and ($1::uuid is null or t.project_id = $1)
           and ($2::text is null or t.status = $2)
         order by t.position, t.due_date nulls last, t.created_at

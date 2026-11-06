@@ -15,12 +15,15 @@ type Task = {
   stage_id: string | null;
   stage_name: string | null;
   due_date: string | null;
+  assignee_id?: string | null;
   estimate_minutes: number | null;
   comments: number;
 };
 type Doc = { id: string; name: string; url: string; kind: string; is_shared: boolean };
 type Note = { id: string; kind: string; title: string; body: string; created_at: string };
 type Act = { id: number; kind: string; label: string; created_at: string };
+
+type Milestone = { id: string; name: string; description: string; due_date: string | null; status: 'pending' | 'reached' | 'missed' };
 
 type Detail = {
   project: {
@@ -46,6 +49,8 @@ type Detail = {
   activity: Act[];
   time: { totalMinutes: number; weekMinutes: number };
 };
+
+type MilestonesResponse = Milestone[];
 
 const COLUMNS: { key: Task['status']; label: string }[] = [
   { key: 'todo', label: 'À faire' },
@@ -75,6 +80,7 @@ export default function AdminProjectDetail() {
   const [note, setNote] = useState({ kind: 'note', title: '', body: '' });
   const [doc, setDoc] = useState({ name: '', url: '', kind: 'link', is_shared: false });
   const [aiText, setAiText] = useState<string | null>(null);
+  const [milestoneDraft, setMilestoneDraft] = useState({ name: '', due_date: '' });
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
@@ -92,6 +98,17 @@ export default function AdminProjectDetail() {
     queryKey: ['pm-project', id],
     queryFn: () => apiGet<Detail>(`/api/v1/admin/pm/projects/${id}`),
     retry: 0,
+  });
+
+  const { data: milestones } = useQuery({
+    queryKey: ['pm-milestones', id],
+    queryFn: () => apiGet<MilestonesResponse>(`/api/v1/admin/pm/projects/${id}/milestones`),
+    enabled: Boolean(id),
+  });
+
+  const { data: team } = useQuery({
+    queryKey: ['pm-team'],
+    queryFn: () => apiGet<{ members: { id: string; name: string }[] }>('/api/v1/admin/pm/team'),
   });
 
   const { data: running } = useQuery({
@@ -181,6 +198,34 @@ export default function AdminProjectDetail() {
       setDoc({ name: '', url: '', kind: 'link', is_shared: false });
       invalidate();
     },
+  });
+
+  const addMilestone = useMutation({
+    mutationFn: () =>
+      apiPost(`/api/v1/admin/pm/projects/${id}/milestones`, {
+        name: milestoneDraft.name,
+        due_date: milestoneDraft.due_date || null,
+      }),
+    onSuccess: () => {
+      setMilestoneDraft({ name: '', due_date: '' });
+      void qc.invalidateQueries({ queryKey: ['pm-milestones', id] });
+      void qc.invalidateQueries({ queryKey: ['planning'] });
+    },
+  });
+
+  const toggleMilestone = useMutation({
+    mutationFn: ({ mid, status }: { mid: string; status: Milestone['status'] }) =>
+      apiPatch(`/api/v1/admin/pm/milestones/${mid}`, { status }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['pm-milestones', id] });
+      void qc.invalidateQueries({ queryKey: ['planning'] });
+    },
+  });
+
+  const assign = useMutation({
+    mutationFn: ({ taskId, userId }: { taskId: string; userId: string | null }) =>
+      apiPost(`/api/v1/admin/pm/tasks/${taskId}/assign`, { assignee_id: userId }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['pm-project', id] }),
   });
 
   const askAi = useMutation({
@@ -399,6 +444,68 @@ export default function AdminProjectDetail() {
         </div>
       </section>
 
+      {/* jalons */}
+      <section className="mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Jalons</h2>
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (milestoneDraft.name.trim().length >= 2) addMilestone.mutate();
+            }}
+          >
+            <input
+              className="field !w-48 !py-1.5 text-xs"
+              placeholder="Jalon (ex. maquettes validées)"
+              value={milestoneDraft.name}
+              onChange={(e) => setMilestoneDraft({ ...milestoneDraft, name: e.target.value })}
+              aria-label="Nom du jalon"
+            />
+            <input
+              type="date"
+              className="field !w-auto !py-1.5 text-xs"
+              value={milestoneDraft.due_date}
+              onChange={(e) => setMilestoneDraft({ ...milestoneDraft, due_date: e.target.value })}
+              aria-label="Date du jalon"
+            />
+            <button type="submit" className="btn-ghost !py-1.5 text-xs" disabled={addMilestone.isPending}>
+              <Plus className="size-3.5" /> Ajouter
+            </button>
+          </form>
+        </div>
+
+        {(milestones ?? []).length === 0 ? (
+          <p className="mt-2 text-xs text-muted">
+            Aucun jalon. Un jalon marque une étape contractuelle (validation client, livraison partielle).
+          </p>
+        ) : (
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {(milestones ?? []).map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    toggleMilestone.mutate({ mid: m.id, status: m.status === 'reached' ? 'pending' : 'reached' })
+                  }
+                  className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                    m.status === 'reached'
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                      : 'border-line bg-paper hover:border-brand/40'
+                  }`}
+                  title="Cliquer pour marquer atteint / en attente"
+                >
+                  <span className="block font-medium">{m.name}</span>
+                  <span className="text-[10px] text-muted">
+                    {m.status === 'reached' ? 'atteint' : m.due_date ? `prévu ${frDate(m.due_date)}` : 'sans date'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {/* onglets */}
       <div className="mt-6 flex gap-1 border-b border-line">
         {[
@@ -510,6 +617,20 @@ export default function AdminProjectDetail() {
                             </span>
                           )}
                           {t.comments > 0 && <span>{t.comments} comm.</span>}
+                          <select
+                            className="ml-auto max-w-[90px] bg-transparent text-[10px] text-muted"
+                            value={(t as Task & { assignee_id?: string | null }).assignee_id ?? ''}
+                            onChange={(e) => assign.mutate({ taskId: t.id, userId: e.target.value || null })}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`Affecter ${t.title}`}
+                          >
+                            <option value="">non affecté</option>
+                            {(team?.members ?? []).map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.name}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </li>
                     ))}

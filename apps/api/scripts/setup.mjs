@@ -171,7 +171,9 @@ const schema = readFileSync(join(here, '../src/db/schema.sql'), 'utf8');
 await client.query(schema);
 const eco = readFileSync(join(here, '../src/db/schema-ecosystem.sql'), 'utf8');
 await client.query(eco);
-console.log('✓ schéma appliqué (base + écosystème)');
+const ws = readFileSync(join(here, '../src/db/schema-workspace.sql'), 'utf8');
+await client.query(ws);
+console.log('✓ schéma appliqué (base + écosystème + workspace)');
 
 // 2. compte propriétaire
 const email = process.env.ADMIN_EMAIL ?? 'admin@5dev.com';
@@ -253,6 +255,39 @@ if (auto.rowCount === 0) {
 } else {
   console.log('- automatisation deja presente');
 }
+
+// 6. modèles de projets (workflows réutilisables)
+const TEMPLATES = [
+  { name: 'Site vitrine', category: 'dev-web', stages: [
+    { name: 'Analyse', weight: 2 }, { name: 'Design', weight: 2 },
+    { name: 'Développement', weight: 4 }, { name: 'Tests', weight: 2 }, { name: 'Livraison', weight: 1 } ] },
+  { name: 'E-commerce', category: 'dev-web', stages: [
+    { name: 'Analyse', weight: 2 }, { name: 'Catalogue', weight: 3 }, { name: 'Panier', weight: 3 },
+    { name: 'Paiement', weight: 3 }, { name: 'Tests', weight: 2 }, { name: 'Lancement', weight: 1 } ] },
+  { name: 'Application web', category: 'app-web', stages: [
+    { name: 'Cahier des charges', weight: 2 }, { name: 'Architecture', weight: 3 }, { name: 'UI/UX', weight: 3 },
+    { name: 'Développement', weight: 5 }, { name: 'QA', weight: 2 }, { name: 'Mise en production', weight: 1 } ] },
+  { name: 'Photographie', category: 'photo', stages: [
+    { name: 'Réservation', weight: 1 }, { name: 'Préparation', weight: 2 },
+    { name: 'Shooting', weight: 4 }, { name: 'Retouche', weight: 3 }, { name: 'Livraison', weight: 1 } ] },
+  { name: 'Marketing', category: 'marketing', stages: [
+    { name: 'Audit', weight: 2 }, { name: 'Stratégie', weight: 3 }, { name: 'Préparation', weight: 2 },
+    { name: 'Campagne', weight: 4 }, { name: 'Analyse', weight: 2 } ] },
+  { name: 'Infrastructure', category: 'infra', stages: [
+    { name: 'Audit', weight: 2 }, { name: 'Configuration', weight: 3 },
+    { name: 'Déploiement', weight: 3 }, { name: 'Sécurisation', weight: 3 }, { name: 'Validation', weight: 2 } ] },
+  { name: 'Projet interne', category: 'interne', stages: [
+    { name: 'Recherche', weight: 2 }, { name: 'Planification', weight: 2 },
+    { name: 'Développement', weight: 4 }, { name: 'Tests', weight: 2 }, { name: 'Lancement', weight: 1 } ] },
+];
+for (const t of TEMPLATES) {
+  await client.query(
+    `insert into project_templates(name, category, stages) values($1,$2,$3::jsonb)
+     on conflict (name) do update set stages = excluded.stages`,
+    [t.name, t.category, JSON.stringify(t.stages)],
+  );
+}
+console.log(`OK ${TEMPLATES.length} modeles de projets disponibles`);
 
 await client.end();
 console.log('\nBase prête. Démarrez : npm run dev:api');

@@ -10,6 +10,7 @@ import { emailRouter } from './modules/email.js';
 import { newsletterRouter } from './modules/newsletter.js';
 import { automationRouter } from './modules/automation.js';
 import { prefsRouter } from './modules/prefs.js';
+import { workspaceRouter } from './modules/workspace.js';
 import { errorHandler, notFound } from './middlewares/errors.js';
 import { currentUser } from './lib/session.js';
 
@@ -52,6 +53,7 @@ export function createApp(): Express {
   app.use('/api/v1', newsletterRouter);
   app.use('/api/v1', automationRouter);
   app.use('/api/v1', prefsRouter);
+  app.use('/api/v1', workspaceRouter);
   app.use(healthRouter); // /healthz à la racine pour les sondes d'hébergeur
 
   app.use(notFound);

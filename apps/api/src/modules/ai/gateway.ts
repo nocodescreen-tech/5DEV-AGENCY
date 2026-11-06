@@ -16,7 +16,8 @@ export type AiTask =
   | 'draft_email'
   | 'draft_newsletter'
   | 'suggest_content'
-  | 'extract_lead';
+  | 'extract_lead'
+  | 'project_plan';
 
 type TaskConfig = {
   label: string;
@@ -79,6 +80,14 @@ export const TASKS: Record<AiTask, TaskConfig> = {
     system:
       'Tu proposes des idées de contenus concrets (5 maximum) pour un studio digital en RDC. Pas de promesses de résultats chiffrés.',
     maxTokens: 500,
+  },
+  project_plan: {
+    label: 'Planifier un projet',
+    description: 'Transforme un cahier des charges en étapes et tâches.',
+    models: ['nvidia/llama-3.1-nemotron-70b-instruct', 'meta/llama-3.1-8b-instruct'],
+    system:
+      'Tu es chef de projet technique. À partir d’un besoin, propose un plan réaliste. Réponds uniquement en JSON: {"etapes":[{"nom":"...","objectif":"...","taches":["..."]}]} — 4 à 8 étapes, 3 à 6 tâches par étape. Aucune estimation de prix ni de délai chiffré inventé.',
+    maxTokens: 1200,
   },
   extract_lead: {
     label: 'Extraire les informations',

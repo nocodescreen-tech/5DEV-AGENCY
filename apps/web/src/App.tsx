@@ -19,6 +19,11 @@ import AdminAI from './pages/admin/AdminAI';
 import AdminEmails from './pages/admin/AdminEmails';
 import AdminNewsletter from './pages/admin/AdminNewsletter';
 import AdminAutomations from './pages/admin/AdminAutomations';
+import AdminWorkspace from './pages/admin/AdminWorkspace';
+import AdminWorkspaceProjects from './pages/admin/AdminWorkspaceProjects';
+import AdminProjectDetail from './pages/admin/AdminProjectDetail';
+import AdminTasks from './pages/admin/AdminTasks';
+import AdminTime from './pages/admin/AdminTime';
 
 function NotFound() {
   return (
@@ -62,6 +67,11 @@ export default function App() {
         <Route path="emails" element={<AdminEmails />} />
         <Route path="newsletter" element={<AdminNewsletter />} />
         <Route path="automatisations" element={<AdminAutomations />} />
+        <Route path="workspace" element={<AdminWorkspace />} />
+        <Route path="projets" element={<AdminWorkspaceProjects />} />
+        <Route path="projets/:id" element={<AdminProjectDetail />} />
+        <Route path="taches" element={<AdminTasks />} />
+        <Route path="temps" element={<AdminTime />} />
       </Route>
     </Routes>
   );

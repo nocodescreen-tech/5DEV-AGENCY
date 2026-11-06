@@ -13,6 +13,8 @@ import {
   LogOut,
   Mails,
   Send,
+  ListChecks,
+  Timer,
   Settings,
   Sparkles,
   Wrench,
@@ -27,6 +29,15 @@ type NavGroup = { title: string; items: NavItem[] };
 
 const GROUPS: NavGroup[] = [
   { title: 'Vue générale', items: [{ to: '/admin', label: 'Tableau de bord', icon: LayoutDashboard, end: true }] },
+  {
+    title: 'Workspace',
+    items: [
+      { to: '/admin/workspace', label: 'Vue générale', icon: LayoutDashboard },
+      { to: '/admin/projets', label: 'Projets', icon: FolderKanban },
+      { to: '/admin/taches', label: 'Tâches', icon: ListChecks },
+      { to: '/admin/temps', label: 'Temps', icon: Timer },
+    ],
+  },
   {
     title: 'Commercial',
     items: [

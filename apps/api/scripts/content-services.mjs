@@ -20,7 +20,7 @@ if (!url) {
   process.exit(1);
 }
 
-const SERVICES = [
+export const SERVICES = [
   {
     slug: 'creation-sites-web',
     summary: 'Un site clair, rapide, qui explique ce que vous faites et donne envie de vous appeler.',
@@ -128,6 +128,11 @@ const SERVICES = [
   },
 ];
 
+const isDirectRun =
+  Boolean(process.argv[1]) && process.argv[1].split(String.fromCharCode(92)).join('/').endsWith('content-services.mjs');
+if (!isDirectRun) {
+  // importé par setup.mjs : on expose seulement le contenu
+} else {
 const client = new Client({ connectionString: url });
 await client.connect();
 
@@ -150,3 +155,4 @@ console.log(`sans texte restants : ${missing.rowCount}`);
 if (missing.rowCount) console.log(missing.rows.map((r) => r.slug).join(', '));
 
 await client.end();
+}

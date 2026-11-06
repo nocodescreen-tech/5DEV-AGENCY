@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { randomBytes, scryptSync } from 'node:crypto';
 import pg from 'pg';
+import { SERVICES as EDITORIAL } from './content-services.mjs';
 const { Client } = pg;
 import dotenv from 'dotenv';
 
@@ -232,14 +233,22 @@ for (const [i, pole] of POLES.entries()) {
   );
   cats += 1;
   const categoryId = cat.rows[0].id;
+  // le contenu éditorial (résumé, description, livrables rédigés) prime sur les libellés du seed
+  const editorialBySlug = new Map(EDITORIAL.map((e) => [e.slug, e]));
+
   for (const [j, s] of pole.services.entries()) {
+    const ed = editorialBySlug.get(s.slug);
+    const summary = ed?.summary ?? s.summary;
+    const description = ed?.description ?? null;
+    const deliverables = ed?.deliverables ?? s.deliverables;
     const before = await client.query('select 1 from services where slug = $1', [s.slug]);
     await client.query(
-      `insert into services(category_id, slug, title, summary, deliverables, duration_label, price_note, position, is_published)
-       values($1,$2,$3,$4,$5,$6,'Sur devis',$7,true)
+      `insert into services(category_id, slug, title, summary, description, deliverables, duration_label, price_note, position, is_published)
+       values($1,$2,$3,$4,$5,$6,$7,'Sur devis',$8,true)
        on conflict (slug) do update set category_id = excluded.category_id, title = excluded.title,
-         summary = excluded.summary, deliverables = excluded.deliverables`,
-      [categoryId, s.slug, s.title, s.summary, s.deliverables, s.duration, j],
+         summary = excluded.summary, description = excluded.description,
+         deliverables = excluded.deliverables, duration_label = excluded.duration_label`,
+      [categoryId, s.slug, s.title, summary, description, deliverables, s.duration, j],
     );
     if (before.rowCount === 0) svcs += 1;
   }

@@ -60,6 +60,9 @@ export default function AdminAIChat() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ name: string; params: Record<string, unknown>; label: string; sensitive: boolean } | null>(null);
+  const [actionState, setActionState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [actionError, setActionError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -160,6 +163,12 @@ export default function AdminAIChat() {
             setLiveText(acc);
           }
           if (event === 'error') setChatError(payload.message ?? 'Erreur du fournisseur.');
+          if (event === 'action') {
+            const a = payload as unknown as { name: string; params: Record<string, unknown>; label: string; sensitive: boolean };
+            setPending(a);
+            setActionState('idle');
+            setActionError(null);
+          }
         }
       }
       await qc.invalidateQueries({ queryKey: ['ai-conv-detail', id] });
@@ -172,6 +181,29 @@ export default function AdminAIChat() {
       setStreaming(false);
       setLiveText('');
       abortRef.current = null;
+    }
+  }
+
+  async function runAction() {
+    if (!pending) return;
+    setActionState('running');
+    setActionError(null);
+    try {
+      const r = await apiPost<{ summary: string; link?: string }>('/api/v1/admin/ai-chat/actions/execute', {
+        action: pending.name,
+        params: pending.params,
+      });
+      setActionState('done');
+      toast.push('success', r.summary);
+      setPending(null);
+      await qc.invalidateQueries({ queryKey: ['dashboard'] });
+      await qc.invalidateQueries({ queryKey: ['all-tasks'] });
+      await qc.invalidateQueries({ queryKey: ['pm-projects'] });
+      await qc.invalidateQueries({ queryKey: ['pm-project'] });
+      await qc.invalidateQueries({ queryKey: ['notifications'] });
+    } catch (err) {
+      setActionState('error');
+      setActionError(err instanceof ApiRequestError ? err.message : 'Action impossible.');
     }
   }
 
@@ -434,6 +466,41 @@ export default function AdminAIChat() {
               </div>
             )}
           </div>
+
+          {pending && (
+            <div className="border-t border-line bg-brand/5 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wider text-brand">Action proposée par l’assistant</p>
+                  <p className="mt-0.5 text-sm font-medium">{pending.label}</p>
+                  <p className="mt-0.5 font-mono text-[10px] text-muted">{pending.name}</p>
+                  {pending.sensitive && (
+                    <p className="mt-1 text-[11px] text-brand">Action sensible : vérifiez le destinataire avant de confirmer.</p>
+                  )}
+                  {actionError && <p className="mt-1 text-[11px] text-brand">{actionError}</p>}
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    className="btn-ghost !py-2 text-xs"
+                    onClick={() => setPending(null)}
+                    disabled={actionState === 'running'}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary !py-2 text-xs"
+                    onClick={() => void runAction()}
+                    disabled={actionState === 'running'}
+                  >
+                    {actionState === 'running' ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                    Confirmer et exécuter
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <form
             className="border-t border-line p-3"

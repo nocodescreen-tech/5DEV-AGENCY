@@ -52,8 +52,8 @@ async function handle(job: Job): Promise<void> {
       const { sendEmail } = await import('./email.js');
       const p = job.payload as { to?: string; subject?: string; html?: string; text?: string };
       if (!p.to || !p.subject || !p.html) throw new Error('payload email incomplet');
-      const res = await sendEmail({ to: p.to, subject: p.subject, html: p.html, text: p.text });
-      if (!res.ok) throw new Error(res.error);
+      const res = await sendEmail({ to: p.to, subject: p.subject, html: p.html, text: p.text, context: 'file' });
+      if (!res.ok) throw new Error(res.error ?? 'envoi impossible');
       return;
     }
     case 'automation.run': {

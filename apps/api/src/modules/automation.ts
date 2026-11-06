@@ -78,7 +78,7 @@ async function executeAction(action: Action, payload: Record<string, unknown>): 
         text: action.body,
         context: 'automation',
       });
-      if (!res.ok) throw new Error(res.error);
+      if (!res.ok) throw new Error(res.error ?? 'envoi impossible');
       return `email envoyé à ${to}`;
     }
     case 'set_lead_status': {

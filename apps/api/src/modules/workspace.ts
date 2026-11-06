@@ -641,6 +641,16 @@ workspaceRouter.post(
   },
 );
 
+workspaceRouter.delete('/admin/pm/notes/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const row = await one(`delete from project_notes where id=$1 returning id`, [String(req.params.id)]);
+    if (!row) throw new AppError(404, 'NOT_FOUND', 'Note introuvable.');
+    res.json({ ok: true, data: { deleted: true } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /* Chronomètre : une seule session ouverte par utilisateur (index unique partiel). */
 workspaceRouter.get('/admin/pm/time/running', requireAdmin, async (req, res, next) => {
   try {

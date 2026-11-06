@@ -3,16 +3,22 @@ import { z } from 'zod';
 import { all, one } from '../db/index.js';
 import { AppError } from '../middlewares/errors.js';
 import { requireAdmin, validate } from '../middlewares/auth.js';
-import { emailInfo, emailLayout, sendEmail } from '../lib/email.js';
+import { emailInfo, emailLayout, sendEmail, verifySmtp } from '../lib/email.js';
 import { emailStats } from '../lib/worker.js';
 
 export const emailRouter: Router = Router();
+
+/**
+ * Console email : journal des envois réels, diagnostic du transport, test, envoi manuel.
+ * Ordre des routes important : `/admin/emails/:id` est déclaré en dernier, sinon il
+ * capte « transport » et « test » (bug rencontré et corrigé).
+ */
 
 emailRouter.get('/admin/emails', requireAdmin, async (_req, res, next) => {
   try {
     const [outbox, stats] = await Promise.all([
       all(
-        `select id, to_email, subject, status, provider, error, attempts, sent_at, created_at
+        `select id, to_email, subject, status, provider, provider_id, error, attempts, sent_at, created_at
            from email_outbox order by created_at desc limit 100`,
       ),
       emailStats(),
@@ -23,78 +29,97 @@ emailRouter.get('/admin/emails', requireAdmin, async (_req, res, next) => {
   }
 });
 
-emailRouter.get('/admin/emails/:id', requireAdmin, async (req, res, next) => {
-  try {
-    const row = await one(`select * from email_outbox where id=$1`, [req.params.id]);
-    if (!row) throw new AppError(404, 'NOT_FOUND', 'Email introuvable.');
-    res.json({ ok: true, data: row });
-  } catch (err) {
-    next(err);
-  }
-});
-
-const sendSchema = z.object({
-  to: z.string().email().max(180),
-  subject: z.string().min(2).max(180),
-  body: z.string().min(5).max(20_000),
-  title: z.string().max(160).optional(),
-});
-
-/** Envoi réel d'un email (journalisé dans email_outbox). */
-emailRouter.post('/admin/emails/send', requireAdmin, validate(sendSchema), async (req, res, next) => {
-  try {
-    const body = req.body as z.infer<typeof sendSchema>;
-    if (!emailInfo().ready) {
-      throw new AppError(503, 'EMAIL_UNAVAILABLE', 'BREVO_API_KEY absente : envoi impossible.');
-    }
-    const result = await sendEmail({
-      to: body.to,
-      subject: body.subject,
-      html: emailLayout({
-        title: body.title ?? body.subject,
-        body: body.body
-          .split('\n')
-          .map((line) => (line.trim() ? `<p>${line}</p>` : ''))
-          .join(''),
-      }),
-      text: body.body,
-      context: 'manuel',
-    });
-
-    if (!result.ok) throw new AppError(502, 'EMAIL_FAILED', result.error);
-
-    await one(
-      `insert into audit_logs(actor_type, actor_id, action, target_type, target_id, ip, meta)
-       values('user',$1,'email.send','email',$2,$3,$4::jsonb)`,
-      [req.user?.id ?? null, result.outboxId, req.ip ?? null, JSON.stringify({ to: body.to })],
-    );
-
-    res.status(201).json({ ok: true, data: { outboxId: result.outboxId, providerId: result.providerId } });
-  } catch (err) {
-    next(err);
-  }
-});
-
-/** Test de configuration : envoie au studio, jamais à un inconnu. */
-emailRouter.post('/admin/emails/test', requireAdmin, async (req, res, next) => {
+/** Diagnostic : quel transport est configuré, lequel répond réellement. */
+emailRouter.get('/admin/email-transport', requireAdmin, async (_req, res, next) => {
   try {
     const info = emailInfo();
-    if (!info.ready) throw new AppError(503, 'EMAIL_UNAVAILABLE', 'BREVO_API_KEY absente.');
+    const smtp = info.alternatives.smtp ? await verifySmtp() : { ok: false, error: 'SMTP non configuré.' };
+    res.json({ ok: true, data: { ...info, smtp } });
+  } catch (err) {
+    next(err);
+  }
+});
 
+/** Envoi de test vers l'adresse du studio (jamais vers un tiers). */
+emailRouter.post('/admin/email-test', requireAdmin, async (req, res, next) => {
+  try {
+    const to =
+      (req.body?.to as string | undefined) ??
+      process.env.CONTACT_EMAIL ??
+      process.env.ADMIN_EMAIL ??
+      process.env.MAIL_FROM_EMAIL ??
+      '';
+    if (!to) throw new AppError(422, 'VALIDATION', 'Aucune adresse de test configurée.');
+
+    const provider = emailInfo().provider;
     const result = await sendEmail({
-      to: info.from,
-      subject: 'Test de configuration — 5DEV',
+      to,
+      subject: '5DEV — test de transport email',
       html: emailLayout({
-        title: 'La configuration email fonctionne',
-        body: `<p>Cet email a été envoyé depuis la console 5DEV pour vérifier le transport.</p>
-               <p>Date : ${new Date().toLocaleString('fr-FR')}</p>`,
+        title: 'Test de transport',
+        body: `<p>Si vous lisez ce message, l’envoi fonctionne depuis 5DEV.</p><p>Fournisseur utilisé : <strong>${provider}</strong>.</p>`,
       }),
-      text: 'Test de configuration 5DEV',
+      text: `Test de transport 5DEV — fournisseur ${provider}`,
       context: 'test',
     });
 
-    if (!result.ok) throw new AppError(502, 'EMAIL_FAILED', result.error);
-    res.json({ ok: true, data: { to: info.from, providerId: result.providerId } });
+    await one(
+      `insert into audit_logs(actor_type, actor_id, action, target_type, target_id, ip, meta)
+       values('user',$1,'email.test','email',$2,$3,$4::jsonb)`,
+      [req.user?.id ?? null, result.outboxId, req.ip ?? null, JSON.stringify({ to, ok: result.ok, provider })],
+    );
+
+    res.json({
+      ok: result.ok,
+      data: { to, provider, providerId: result.providerId, outboxId: result.outboxId },
+      error: result.ok ? undefined : { code: 'EMAIL_FAILED', message: result.error },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+emailRouter.post(
+  '/admin/emails/send',
+  requireAdmin,
+  validate(z.object({ to: z.string().email(), subject: z.string().min(2).max(180), body: z.string().min(2).max(8000) })),
+  async (req, res, next) => {
+    try {
+      const body = req.body as { to: string; subject: string; body: string };
+      const result = await sendEmail({
+        to: body.to,
+        subject: body.subject,
+        html: emailLayout({
+          title: body.subject,
+          body: body.body
+            .split('\n')
+            .map((line) => (line.trim() ? `<p>${line}</p>` : ''))
+            .join(''),
+        }),
+        text: body.body,
+        context: 'manuel',
+      });
+
+      if (!result.ok) throw new AppError(502, 'EMAIL_FAILED', result.error ?? 'Envoi impossible.');
+
+      await one(
+        `insert into audit_logs(actor_type, actor_id, action, target_type, target_id, ip, meta)
+         values('user',$1,'email.send','email',$2,$3,$4::jsonb)`,
+        [req.user?.id ?? null, result.outboxId, req.ip ?? null, JSON.stringify({ to: body.to })],
+      );
+
+      res.status(201).json({ ok: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+emailRouter.get('/admin/emails/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const row = await one(`select * from email_outbox where id=$1`, [String(req.params.id)]);
+    if (!row) throw new AppError(404, 'NOT_FOUND', 'Email introuvable.');
+    res.json({ ok: true, data: row });
   } catch (err) {
     next(err);
   }

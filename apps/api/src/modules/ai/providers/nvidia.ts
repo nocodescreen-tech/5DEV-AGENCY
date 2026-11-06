@@ -110,7 +110,14 @@ export async function chat(
 export async function* streamChat(
   model: string,
   messages: ChatMessage[],
-  opts: { temperature?: number; maxTokens?: number; timeoutMs?: number; signal?: AbortSignal } = {},
+  opts: {
+    temperature?: number;
+    maxTokens?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    /** reçoit le raisonnement éventuel (modèles « reasoning ») */
+    sink?: { reasoning?: string };
+  } = {},
 ): AsyncGenerator<string, void, unknown> {
   const key = await resolveKey();
   if (!key) throw new NvidiaError(503, 'Aucune clé NVIDIA configurée.');
@@ -140,6 +147,7 @@ export async function* streamChat(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let emitted = false;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -153,11 +161,23 @@ export async function* streamChat(
       const trimmed = line.trim();
       if (!trimmed.startsWith('data:')) continue;
       const payload = trimmed.slice(5).trim();
-      if (payload === '[DONE]') return;
+      if (payload === '[DONE]') {
+        if (!emitted && opts.sink?.reasoning) yield opts.sink.reasoning;
+        return;
+      }
       try {
-        const json = JSON.parse(payload) as { choices?: { delta?: { content?: string } }[] };
-        const delta = json.choices?.[0]?.delta?.content;
-        if (delta) yield delta;
+        const json = JSON.parse(payload) as {
+          choices?: { delta?: { content?: string; reasoning_content?: string } }[];
+        };
+        const delta = json.choices?.[0]?.delta;
+        // certains modèles streament leur raisonnement à part : on le garde de côté
+        if (delta?.reasoning_content && opts.sink) {
+          opts.sink.reasoning = (opts.sink.reasoning ?? '') + delta.reasoning_content;
+        }
+        if (delta?.content) {
+          emitted = true;
+          yield delta.content;
+        }
       } catch {
         /* fragment non JSON ignoré */
       }

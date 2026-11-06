@@ -29,13 +29,13 @@ export default function APropos() {
     <div className="container-x py-14 sm:py-20">
       <p className="eyebrow">À propos</p>
       <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
-        5DEV, une agence numérique basée à Matadi.
+        Une petite équipe, basée à Matadi, qui aime les choses bien faites.
       </h1>
       <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink/70">
-        5DEV accompagne les entreprises, institutions et créateurs de la région sur tout ce qui
-        touche à leur présence numérique : sites et applications, infrastructure, croissance et
-        photographie. Le travail se fait en français, avec des livrables documentés et un
-        interlocuteur qui répond.
+        5DEV est né d’un constat simple : beaucoup d’entreprises d’ici ont besoin de compétences
+        numériques qu’on ne trouve pas facilement au coin de la rue. Alors on a réuni le
+        développement, l’infrastructure, la croissance et la photographie sous un même toit. On
+        travaille en français, on explique ce qu’on fait, et on répond quand vous appelez.
       </p>
 
       <div className="mt-14 grid gap-10 lg:grid-cols-[1fr_0.8fr]">

@@ -38,9 +38,10 @@ export default function Contact() {
       <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
           <p className="eyebrow">Contact</p>
-          <h1 className="mt-3 text-4xl font-black leading-tight sm:text-5xl">Parlons de votre projet.</h1>
+          <h1 className="mt-3 text-4xl font-black leading-tight sm:text-5xl">Dites-nous ce qui vous amène.</h1>
           <p className="mt-5 max-w-md text-lg text-ink/65">
-            Un message suffit. Réponse sous 48 heures ouvrées, sans engagement.
+            Deux lignes suffisent pour commencer. On lit chaque message et on répond sous 48 heures
+            ouvrées — sans engagement, et sans discours de vente.
           </p>
 
           <ul className="mt-10 space-y-4 text-sm">

@@ -34,7 +34,7 @@ export default function AdminEmails() {
   });
 
   const test = useMutation({
-    mutationFn: () => apiPost<{ to: string; providerId: string | null }>('/api/v1/admin/emails/test'),
+    mutationFn: () => apiPost<{ to: string; providerId: string | null }>('/api/v1/admin/email-test'),
     onSuccess: (r) => {
       setError(null);
       setFeedback(`Email de test envoyé à ${r.to} (id ${r.providerId ?? 'n/a'}).`);

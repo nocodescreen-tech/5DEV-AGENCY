@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPatch } from '../../lib/api';
+import { useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { apiDelete, apiGet, apiPatch } from '../../lib/api';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { useToast } from '../../components/Toaster';
 import type { Booking } from '../../lib/types';
 import { frDate } from '../../lib/format';
 
@@ -18,6 +22,8 @@ const STATUS: { value: Booking['status']; label: string }[] = [
 
 export default function AdminBookings() {
   const qc = useQueryClient();
+  const toast = useToast();
+  const [toDelete, setToDelete] = useState<{ id: string; label: string } | null>(null);
   const { data, isPending } = useQuery({
     queryKey: ['bookings'],
     queryFn: () => apiGet<Booking[]>('/api/v1/admin/bookings'),
@@ -55,6 +61,7 @@ export default function AdminBookings() {
                 <th className="px-3 py-2">Créneau</th>
                 <th className="px-3 py-2">Prestation</th>
                 <th className="px-3 py-2">Statut</th>
+                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -71,7 +78,7 @@ export default function AdminBookings() {
                     {b.service_title ?? '—'}
                     {b.location && <span className="block text-muted">{b.location}</span>}
                   </td>
-                  <td className="rounded-r-lg px-3 py-3">
+                  <td className="px-3 py-3">
                     <select
                       className="field !w-auto !py-2 text-xs"
                       value={b.status}
@@ -85,12 +92,40 @@ export default function AdminBookings() {
                       ))}
                     </select>
                   </td>
+                  <td className="rounded-r-lg px-3 py-3">
+                    <button
+                      type="button"
+                      aria-label={`Supprimer la réservation de ${b.full_name}`}
+                      className="rounded-md p-1.5 text-muted transition hover:bg-brand/10 hover:text-brand"
+                      onClick={() => setToDelete({ id: b.id, label: b.full_name })}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        title="Supprimer cette réservation ?"
+        description={
+          <>
+            La réservation de <strong>{toDelete?.label}</strong> sera supprimée définitivement, ainsi que
+            le créneau associé.
+          </>
+        }
+        onCancel={() => setToDelete(null)}
+        onConfirm={async () => {
+          if (!toDelete) return;
+          await apiDelete(`/api/v1/admin/bookings/${toDelete.id}`);
+          await qc.invalidateQueries({ queryKey: ['bookings'] });
+          toast.push('success', 'Réservation supprimée.');
+        }}
+      />
     </div>
   );
 }

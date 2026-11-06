@@ -17,11 +17,11 @@ export default function Services() {
     <div className="container-x py-14 sm:py-20">
       <p className="eyebrow">Services</p>
       <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
-        Ce que 5DEV réalise, concrètement.
+        Voilà ce qu’on sait faire — et ce que vous recevez.
       </h1>
       <p className="mt-5 max-w-2xl text-lg text-ink/65">
-        Chaque prestation indique ce qui est livré. Les prix sont donnés au devis, selon le
-        périmètre réel — jamais un forfait caché.
+        Pour chaque prestation, vous voyez les livrables avant de payer. Le prix se discute au
+        devis, sur le périmètre réel : pas de supplément surprise au milieu du projet.
       </p>
 
       {isPending && <p className="mt-12 text-sm text-muted">Chargement du catalogue…</p>}

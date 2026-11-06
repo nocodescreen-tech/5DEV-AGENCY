@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../lib/api';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import type { Category, Service } from '../../lib/types';
 import { slugify } from '../../lib/format';
 
@@ -29,6 +30,7 @@ const empty = (categoryId: string): Draft => ({
 });
 
 export default function AdminServices() {
+  const [toDelete, setToDelete] = useState<{ id: string; label: string } | null>(null);
   const qc = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
 
@@ -65,14 +67,6 @@ export default function AdminServices() {
     },
     onSuccess: () => {
       setDraft(null);
-      void qc.invalidateQueries({ queryKey: ['admin-services'] });
-      void qc.invalidateQueries({ queryKey: ['services'] });
-    },
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: string) => apiDelete(`/api/v1/admin/services/${id}`),
-    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin-services'] });
       void qc.invalidateQueries({ queryKey: ['services'] });
     },
@@ -268,7 +262,7 @@ export default function AdminServices() {
                       aria-label={`Supprimer ${s.title}`}
                       className="text-ink/60 hover:text-brand"
                       onClick={() => {
-                        if (confirm(`Supprimer « ${s.title} » ?`)) remove.mutate(s.id);
+                        setToDelete({ id: s.id, label: s.title });
                       }}
                     >
                       <Trash2 className="size-4" />
@@ -285,6 +279,23 @@ export default function AdminServices() {
           </p>
         )}
       </div>
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        title="Supprimer ce service ?"
+        description={
+          <>
+            «&nbsp;{toDelete?.label}&nbsp;» sera retiré du catalogue. Les demandes déjà reçues qui y font
+            référence sont conservées.
+          </>
+        }
+        onCancel={() => setToDelete(null)}
+        onConfirm={async () => {
+          if (!toDelete) return;
+          await apiDelete(`/api/v1/admin/services/${toDelete.id}`);
+          await qc.invalidateQueries({ queryKey: ['admin-services'] });
+          setToDelete(null);
+        }}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../lib/api';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import type { Category, Project } from '../../lib/types';
 import { slugify } from '../../lib/format';
 
@@ -33,6 +34,7 @@ const empty = (categoryId: string): Draft => ({
 });
 
 export default function AdminProjects() {
+  const [toDelete, setToDelete] = useState<{ id: string; label: string } | null>(null);
   const qc = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
 
@@ -67,14 +69,6 @@ export default function AdminProjects() {
     },
     onSuccess: () => {
       setDraft(null);
-      void qc.invalidateQueries({ queryKey: ['admin-projects'] });
-      void qc.invalidateQueries({ queryKey: ['projects'] });
-    },
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: string) => apiDelete(`/api/v1/admin/projects/${id}`),
-    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin-projects'] });
       void qc.invalidateQueries({ queryKey: ['projects'] });
     },
@@ -280,7 +274,7 @@ export default function AdminProjects() {
                 aria-label={`Supprimer ${p.title}`}
                 className="text-ink/60 hover:text-brand"
                 onClick={() => {
-                  if (confirm(`Supprimer « ${p.title} » ?`)) remove.mutate(p.id);
+                  setToDelete({ id: p.id, label: p.title });
                 }}
               >
                 <Trash2 className="size-4" />
@@ -294,6 +288,22 @@ export default function AdminProjects() {
           </li>
         )}
       </ul>
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        title="Supprimer cette réalisation ?"
+        description={
+          <>
+            «&nbsp;{toDelete?.label}&nbsp;» sera retirée du portfolio public. Cette action est définitive.
+          </>
+        }
+        onCancel={() => setToDelete(null)}
+        onConfirm={async () => {
+          if (!toDelete) return;
+          await apiDelete(`/api/v1/admin/projects/${toDelete.id}`);
+          await qc.invalidateQueries({ queryKey: ['admin-projects'] });
+          setToDelete(null);
+        }}
+      />
     </div>
   );
 }

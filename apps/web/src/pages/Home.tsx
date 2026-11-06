@@ -156,28 +156,28 @@ export default function Home() {
             </div>
 
             <div>
-              <h1 className="display-1 mt-5">
-                Des outils numériques
+              <h1 className="mt-5 font-extrabold tracking-[-0.035em] text-[clamp(1.95rem,4.1vw,3.35rem)] leading-[1.05]">
+                Les bonnes idées méritent mieux
                 <br />
-                <span className="text-brand">qui travaillent</span> pour vous.
+                que de rester <span className="text-brand">des idées</span>.
               </h1>
             </div>
 
             <div>
               <p className="lead mt-6 max-w-[46ch]">
-                5DEV conçoit des sites, des applications et des dispositifs de croissance pour les
-                entreprises congolaises — et photographie ce qui mérite d’être montré. Un seul
-                interlocuteur, un périmètre écrit, une mise en ligne vérifiée.
+                Un projet en tête ? Une activité à faire évoluer ? On réunit la technique, la
+                créativité et le savoir-faire pour construire quelque chose qui vous ressemble — et
+                qui fonctionne vraiment quand vous êtes devant.
               </p>
             </div>
 
             <div>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link to="/devis" className="btn-primary">
-                  Décrire mon projet <ArrowRight className="size-4" aria-hidden />
+                  Parlons de votre projet <ArrowRight className="size-4" aria-hidden />
                 </Link>
                 <Link to="/services" className="btn-ghost">
-                  Voir les services
+                  Découvrir ce qu’on fait
                 </Link>
               </div>
             </div>
@@ -188,7 +188,9 @@ export default function Home() {
                   { k: 'Pôles d’activité', v: categories.length || 4 },
                   { k: 'Services au catalogue', v: services.length || 0 },
                   { k: 'Projets publiés', v: published.length },
-                ].map((s) => (
+                ]
+                  .filter((s) => s.v > 0)
+                  .map((s) => (
                   <div key={s.k}>
                     <dd className="text-2xl font-black">
                       <Counter value={s.v} />
@@ -227,7 +229,7 @@ export default function Home() {
         <div className="mx-auto max-w-[1240px] px-5 py-16 lg:py-20">
           <Reveal>
             <p className="eyebrow">Quatre pôles</p>
-            <h2 className="display-2 mt-3 max-w-[24ch]">Une équipe, quatre métiers complémentaires.</h2>
+            <h2 className="display-2 mt-3 max-w-[26ch]">On ne fait pas du digital pour faire joli.</h2>
           </Reveal>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -262,7 +264,7 @@ export default function Home() {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <Reveal>
               <p className="eyebrow">Catalogue</p>
-              <h2 className="display-2 mt-3">Ce que nous prenons en charge.</h2>
+              <h2 className="display-2 mt-3">Ce qu’on peut construire ensemble.</h2>
             </Reveal>
             <Reveal delay={80}>
               <Link to="/services" className="nav-link text-sm font-medium">
@@ -300,7 +302,7 @@ export default function Home() {
         <div className="mx-auto max-w-[1240px] px-5 py-16 lg:py-20">
           <Reveal>
             <p className="eyebrow">Réalisations</p>
-            <h2 className="display-2 mt-3 max-w-[26ch]">Des projets en ligne, vérifiables.</h2>
+            <h2 className="display-2 mt-3 max-w-[26ch]">Des projets qu’on peut visiter.</h2>
             <p className="lead mt-4 max-w-[58ch]">
               Chaque projet publié ici est un site réellement livré, avec son adresse. Nous
               n’affichons pas de maquettes en guise de références.
@@ -468,10 +470,10 @@ export default function Home() {
         <div className="mx-auto grid max-w-[1240px] gap-10 px-5 py-16 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16 lg:py-20">
           <Reveal>
             <p className="eyebrow">Questions fréquentes</p>
-            <h2 className="display-2 mt-3">Avant de nous écrire.</h2>
+            <h2 className="display-2 mt-3">Ce qu’on nous demande souvent.</h2>
             <p className="lead mt-4 max-w-[34ch]">
-              Si votre question n’est pas là, posez-la directement — nous répondons en général dans
-              la journée.
+              Vous ne trouvez pas votre question ? Écrivez-nous : on répond nous-mêmes, pas un robot,
+              et en général dans la journée.
             </p>
             <Link to="/contact" className="btn-ghost mt-6">
               Poser une question
@@ -492,11 +494,11 @@ export default function Home() {
               <div className="pointer-events-none absolute -bottom-24 -left-10 size-72 rounded-full bg-brand/10 blur-3xl" aria-hidden />
               <p className="eyebrow relative text-white/50">Parlons de votre projet</p>
               <h2 className="display-2 relative mx-auto mt-4 max-w-[24ch] text-white">
-                Un besoin clair, un devis précis, un calendrier tenu.
+                Racontez-nous ce qui coince. On vous dira franchement ce qu’on peut faire.
               </h2>
               <p className="relative mx-auto mt-5 max-w-[52ch] text-white/70">
-                Décrivez votre activité et ce que vous voulez obtenir. Nous répondons avec un
-                périmètre, un prix et une date — pas avec une plaquette.
+                Deux paragraphes suffisent. En retour : un périmètre clair, un prix et une date —
+                pas une plaquette commerciale.
               </p>
               <div className="relative mt-8 flex flex-wrap justify-center gap-3">
                 <Link to="/devis" className="btn-primary">

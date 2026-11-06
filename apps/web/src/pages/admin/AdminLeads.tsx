@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPatch } from '../../lib/api';
+import { apiDelete, apiGet, apiPatch } from '../../lib/api';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { useToast } from '../../components/Toaster';
+import { Trash2 } from 'lucide-react';
 import type { Lead } from '../../lib/types';
 import { frDateTime, money } from '../../lib/format';
 
@@ -16,6 +19,8 @@ export default function AdminLeads() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<'' | Lead['status']>('');
   const [open, setOpen] = useState<string | null>(null);
+  const [toDelete, setToDelete] = useState<{ id: string; label: string } | null>(null);
+  const toast = useToast();
 
   const { data, isPending } = useQuery({
     queryKey: ['leads', filter],
@@ -102,6 +107,14 @@ export default function AdminLeads() {
                 >
                   {open === lead.id ? 'masquer' : 'détail'}
                 </button>
+                <button
+                  type="button"
+                  aria-label={`Supprimer la demande de ${lead.contact_name}`}
+                  className="rounded-md p-1.5 text-muted transition hover:bg-brand/10 hover:text-brand"
+                  onClick={() => setToDelete({ id: lead.id, label: lead.contact_name })}
+                >
+                  <Trash2 className="size-4" />
+                </button>
               </div>
             </div>
 
@@ -120,6 +133,25 @@ export default function AdminLeads() {
           </li>
         ))}
       </ul>
+
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        title="Supprimer cette demande ?"
+        description={
+          <>
+            La demande de <strong>{toDelete?.label}</strong> sera définitivement supprimée. Cette action
+            n’est pas réversible.
+          </>
+        }
+        onCancel={() => setToDelete(null)}
+        onConfirm={async () => {
+          if (!toDelete) return;
+          await apiDelete(`/api/v1/admin/leads/${toDelete.id}`);
+          await qc.invalidateQueries({ queryKey: ['leads'] });
+          await qc.invalidateQueries({ queryKey: ['dashboard'] });
+          toast.push('success', 'Demande supprimée.');
+        }}
+      />
     </div>
   );
 }

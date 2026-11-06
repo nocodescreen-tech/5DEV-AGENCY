@@ -6,6 +6,7 @@ import { requireAdmin, validate } from '../middlewares/auth.js';
 import { NvidiaError, listModels, streamChat, type ChatMessage } from './ai/providers/nvidia.js';
 import { writeSecret, secretInfo, deleteSecret, readSecret } from '../lib/secrets.js';
 import { invalidateKeyCache } from './ai/providers/nvidia.js';
+import { ACTION_SPECS, auditAction, describeAction, executeAction, extractAction } from './ai/actions.js';
 
 export const aiChatRouter: Router = Router();
 
@@ -219,7 +220,22 @@ aiChatRouter.post(
           role: 'system',
           content:
             conv.system_prompt ??
-            "Tu es l'assistant interne de 5DEV (agence numérique à Matadi). Tu réponds en français, de façon concise et concrète. Tu n'inventes jamais de prix, de délais, de statistiques ni de témoignages. Si une information manque, tu le dis.",
+            conv.system_prompt ??
+            `Tu es l'assistant interne de 5DEV (agence numérique à Matadi). Tu réponds en français, de façon concise et concrète. Tu n'inventes jamais de prix, de délais, de statistiques ni de témoignages. Si une information manque, tu le dis.
+
+Tu peux PROPOSER des actions sur l'application, jamais les exécuter toi-même. Pour cela, termine ta réponse par un bloc de code unique :
+\`\`\`action
+{"action":"<nom>","params":{...}}
+\`\`\`
+Actions autorisées : ${Object.keys(ACTION_SPECS).join(', ')}.
+- task_create {project_id, title, due_date?, priority?}
+- task_set_status {task_id, status}
+- task_delete {task_id}
+- project_set_status {project_id, status}
+- note_add {project_id, title, body?, kind?}
+- email_send {to, subject, body}
+
+Règles : une seule action par réponse, uniquement si l'utilisateur la demande clairement. N'invente jamais d'identifiant : si tu ne l'as pas, demande-le. L'utilisateur devra confirmer avant toute exécution.`,
         },
         ...history,
         { role: 'user', content },
@@ -257,10 +273,12 @@ aiChatRouter.post(
       }
 
       let full = '';
+      const sink: { reasoning?: string } = {};
       try {
         for await (const delta of streamChat(model, msgs, {
           temperature: Number(conv.temperature),
           maxTokens: conv.max_tokens,
+          sink,
         })) {
           full += delta;
           send('delta', { text: delta });
@@ -288,11 +306,27 @@ aiChatRouter.post(
         return;
       }
 
+      const answer = full.trim() || (sink.reasoning ?? '').trim();
       await one(
         `insert into ai_messages(conversation_id, role, content, model, provider, latency_ms)
          values($1,'assistant',$2,$3,'nvidia',$4)`,
-        [conv.id, full.trim(), model, Date.now() - started],
+        [conv.id, answer || '_(réponse vide du modèle)_', model, Date.now() - started],
       );
+
+      // le modèle a pu proposer une action : on la valide et on l'envoie comme proposition
+      const proposed = extractAction(answer);
+      if (proposed) {
+        try {
+          const described = describeAction(proposed.name, proposed.params);
+          send('action', described);
+        } catch (err) {
+          send('action_invalid', {
+            name: proposed.name,
+            message: err instanceof AppError ? err.message : 'Proposition incomplète.',
+          });
+        }
+      }
+
       send('done', { stubbed: false, latency_ms: Date.now() - started });
       res.end();
     } catch (err) {
@@ -328,6 +362,42 @@ aiChatRouter.post('/admin/ai-chat/conversations/:id/retry', requireAdmin, async 
     next(err);
   }
 });
+
+/* ------------------------------------------------------- actions assistées */
+
+aiChatRouter.get('/admin/ai-chat/actions', requireAdmin, (_req, res) => {
+  res.json({
+    ok: true,
+    data: Object.entries(ACTION_SPECS).map(([name, spec]) => ({
+      name,
+      label: spec.label,
+      sensitive: Boolean((spec as { sensitive?: boolean }).sensitive),
+    })),
+  });
+});
+
+/** Exécution : uniquement sur confirmation explicite de l'utilisateur connecté. */
+aiChatRouter.post(
+  '/admin/ai-chat/actions/execute',
+  requireAdmin,
+  validate(
+    z.object({
+      action: z.string().min(3).max(60),
+      params: z.record(z.unknown()).default({}),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const { action, params } = req.body as { action: string; params: Record<string, unknown> };
+      const described = describeAction(action, params);
+      const result = await executeAction(described.name, described.params, req.user?.id ?? null);
+      await auditAction(described.name, described.params, req.user?.id ?? null, req.ip ?? null);
+      res.json({ ok: true, data: { ...result, label: described.label } });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 /* ------------------------------------------------- gestion des 5 modèles */
 

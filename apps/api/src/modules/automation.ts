@@ -238,7 +238,12 @@ automationRouter.patch(
 
 automationRouter.delete('/admin/automations/:id', requireAdmin, async (req, res, next) => {
   try {
-    await one(`delete from automations where id=$1 returning id`, [req.params.id]);
+    // id non-uuid = 404 propre, jamais 500 (Postgres rejetterait le cast)
+    if (!z.string().uuid().safeParse(req.params.id).success) {
+      throw new AppError(404, 'NOT_FOUND', 'Automatisation introuvable.');
+    }
+    const row = await one(`delete from automations where id=$1 returning id`, [String(req.params.id)]);
+    if (!row) throw new AppError(404, 'NOT_FOUND', 'Automatisation introuvable.');
     res.json({ ok: true, data: { deleted: true } });
   } catch (err) {
     next(err);

@@ -15,6 +15,27 @@ function key(): Buffer {
   return createHash('sha256').update(`5dev:secrets:${config.SESSION_SECRET}`).digest();
 }
 
+/** Chiffre une valeur courte (secret TOTP, jeton) — synchrone, utilisable en base. */
+export function encryptSecret(plain: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv(ALGO, key(), iv);
+  const enc = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+  return `v1.${iv.toString('base64url')}.${enc.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}`;
+}
+
+/** Déchiffre une valeur produite par encryptSecret. Renvoie null si le format ne correspond pas. */
+export function decryptSecret(value: string): string | null {
+  try {
+    const [version, ivB64, dataB64, tagB64] = value.split('.');
+    if (version !== 'v1' || !ivB64 || !dataB64 || !tagB64) return null;
+    const decipher = createDecipheriv(ALGO, key(), Buffer.from(ivB64, 'base64url'));
+    decipher.setAuthTag(Buffer.from(tagB64, 'base64url'));
+    return Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64url')), decipher.final()]).toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
 export async function writeSecret(name: string, value: string): Promise<{ hint: string }> {
   const iv = randomBytes(12);
   const cipher = createCipheriv(ALGO, key(), iv);

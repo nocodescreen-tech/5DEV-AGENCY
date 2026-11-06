@@ -179,6 +179,8 @@ const prof = readFileSync(join(here, '../src/db/schema-profile.sql'), 'utf8');
 await client.query(prof);
 const ws2 = readFileSync(join(here, '../src/db/schema-workspace-2.sql'), 'utf8');
 await client.query(ws2);
+const otp = readFileSync(join(here, '../src/db/schema-otp.sql'), 'utf8');
+await client.query(otp);
 console.log('✓ schéma appliqué (base + écosystème + workspace)');
 
 // 2. compte propriétaire

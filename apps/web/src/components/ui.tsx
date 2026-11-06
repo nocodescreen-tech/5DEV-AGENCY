@@ -33,11 +33,12 @@ export function Reveal({
           }
         }
       },
-      { rootMargin: '0px 0px -8% 0px', threshold: 0.06 },
+      // pré-révélation : on déclenche 25 % avant l'entrée dans l'écran, jamais de blanc au scroll rapide
+      { rootMargin: '25% 0px 25% 0px', threshold: 0 },
     );
     io.observe(el);
     // filet de sécurité : jamais de contenu bloqué invisible
-    const t = window.setTimeout(() => setSeen(true), 1600);
+    const t = window.setTimeout(() => setSeen(true), 700);
     return () => {
       io.disconnect();
       window.clearTimeout(t);
@@ -85,7 +86,7 @@ export function MediaImage({
   }, []);
 
   return (
-    <div className={`media ${loaded ? 'is-loaded' : ''} ${className}`}>
+    <div className={`media ${loaded ? 'is-loaded' : ''} ${className}`} data-priority={priority ? 'true' : undefined}>
       <img
         ref={ref}
         src={`/photos/${slug}-1600.webp`}

@@ -8,6 +8,10 @@ import { ToastProvider } from './components/Toaster';
 import './index.css';
 import './design.css';
 
+// Filet global : si un observateur ne s'exécute pas (navigateur ancien, JS partiel),
+// le contenu redevient lisible au lieu de rester invisible.
+window.setTimeout(() => document.documentElement.classList.add('reveal-fallback'), 2500);
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

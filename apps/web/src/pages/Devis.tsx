@@ -117,6 +117,13 @@ export default function Devis() {
         </p>
 
         {/* progression */}
+        <div className="mt-6 h-1 overflow-hidden rounded-full bg-line" aria-hidden>
+          <div
+            className="h-full rounded-full bg-brand transition-[width] duration-500"
+            style={{ width: `${Math.round((step / (STEPS.length - 1)) * 100)}%` }}
+          />
+        </div>
+
         <ol className="mt-8 flex items-center gap-2" aria-label="Progression">
           {STEPS.map((label, i) => (
             <li key={label} className="flex flex-1 items-center gap-2">
@@ -135,6 +142,7 @@ export default function Devis() {
         </ol>
 
         <div className="mt-8 card p-6 sm:p-8">
+          <div key={step} className="anim-rise">
           {step === 0 && (
             <div className="space-y-5">
               <div>
@@ -297,6 +305,8 @@ export default function Devis() {
               {error}
             </p>
           )}
+
+          </div>
 
           <div className="mt-7 flex items-center justify-between">
             <button

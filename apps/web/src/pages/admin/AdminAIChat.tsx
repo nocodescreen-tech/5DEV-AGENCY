@@ -19,6 +19,7 @@ import { useToast } from '../../components/Toaster';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EmptyState, Skeleton } from '../../components/ui';
 
+import { PageHeader } from '../../components/admin/PageHeader';
 type Conversation = {
   id: string;
   title: string;
@@ -63,7 +64,7 @@ export default function AdminAIChat() {
   const [renameValue, setRenameValue] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<{ id: string; label: string } | null>(null);
-  const [agentMode, setAgentMode] = useState(true);
+  const [agentMode, setAgentMode] = useState(false);
   const [agentSteps, setAgentSteps] = useState<{ tool: string; label: string; rows: number }[]>([]);
   const [pending, setPending] = useState<{ name: string; params: Record<string, unknown>; label: string; sensitive: boolean } | null>(null);
   const [actionState, setActionState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
@@ -74,11 +75,15 @@ export default function AdminAIChat() {
   const { data: conversations, isPending: loadingList } = useQuery({
     queryKey: ['ai-conv', search],
     queryFn: () => apiGet<Conversation[]>(`/api/v1/admin/ai-chat/conversations?q=${encodeURIComponent(search)}`),
+    staleTime: 20_000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: models } = useQuery({
     queryKey: ['ai-models'],
     queryFn: () => apiGet<{ models: Model[]; key: { configured: boolean } }>('/api/v1/admin/ai/models'),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: current } = useQuery({
@@ -87,6 +92,8 @@ export default function AdminAIChat() {
       `/api/v1/admin/ai-chat/conversations/${activeId}`,
     ),
     enabled: Boolean(activeId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const availableModels = useMemo(
@@ -156,6 +163,9 @@ export default function AdminAIChat() {
           { conversation_id: id, message: content },
         );
         setAgentSteps(out.steps ?? []);
+        // le fil est une requête distincte : sans cette invalidation, la réponse n'apparaît
+        // qu'après un rechargement de la page.
+        await qc.invalidateQueries({ queryKey: ['ai-conv-detail', id] });
         await qc.invalidateQueries({ queryKey: ['ai-conv'] });
       } catch (err) {
         setChatError(err instanceof ApiRequestError ? err.message : 'Le mode agent a échoué.');
@@ -294,17 +304,16 @@ export default function AdminAIChat() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black">5DEV AI Chat</h1>
-          <p className="mt-1 text-sm text-muted">
-            Conversations persistées, réponses en streaming. La clé NVIDIA reste sur le serveur.
-          </p>
-        </div>
-        <button type="button" className="btn-primary !px-4 !py-2.5 text-sm" onClick={() => void createConversation()}>
-          <MessageSquarePlus className="size-4" /> Nouvelle conversation
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Intelligence artificielle"
+        title="Assistant 5DEV"
+        sub="Conversations conservées, réponses en flux. La clé du fournisseur ne quitte jamais le serveur."
+        actions={
+          <button type="button" className="btn-primary !px-4 !py-2.5 text-sm" onClick={() => void createConversation()}>
+            <MessageSquarePlus className="size-4" /> Nouvelle conversation
+          </button>
+        }
+      />
 
       {noProvider && (
         <p className="mt-4 rounded-lg border border-brand/40 bg-brand/5 p-3 text-sm">
@@ -313,9 +322,9 @@ export default function AdminAIChat() {
         </p>
       )}
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[280px_1fr]">
+      <div className="mt-4 grid gap-3 lg:grid-cols-[272px_1fr] chat-shell">
         {/* ---------------------------------------------------- liste */}
-        <aside className="card flex max-h-[70vh] flex-col overflow-hidden">
+        <aside className="panel flex min-h-0 flex-col overflow-hidden">
           <div className="border-b border-line p-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted" aria-hidden />
@@ -395,7 +404,7 @@ export default function AdminAIChat() {
         </aside>
 
         {/* --------------------------------------------------- fil */}
-        <section className="card flex max-h-[70vh] min-h-[520px] flex-col overflow-hidden">
+        <section className="panel flex min-h-0 flex-col overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
             <div className="flex items-center gap-2">
               <select

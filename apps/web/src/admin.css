@@ -257,3 +257,15 @@
 @media (prefers-reduced-motion: reduce) {
   .chat-caret { animation: none; }
 }
+
+
+/* le chat occupe la hauteur restante : le champ de saisie reste visible, sans
+   double barre de défilement */
+.chat-shell {
+  height: clamp(560px, calc(100dvh - 15rem), 1100px);
+}
+@media (max-width: 1023px) {
+  .chat-shell { height: auto; }
+  .chat-shell > aside { max-height: 34vh; }
+  .chat-shell > section { height: 72vh; }
+}

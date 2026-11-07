@@ -5,8 +5,12 @@
 import { hashPassword } from '../src/lib/password.ts';
 import { one } from '../src/db/index.ts';
 
-const EMAIL = 'qa-chat@5dev.local';
-const PASSWORD = 'Qa-Chat-2026!';
+const EMAIL = process.env.QA_EMAIL ?? 'qa-chat@5dev.local';
+const PASSWORD = process.env.QA_PASSWORD;
+if (!PASSWORD) {
+  console.error('QA_PASSWORD requis : QA_PASSWORD=... node apps/api/scripts/qa-user.mjs create');
+  process.exit(2);
+}
 
 const action = process.argv[2] ?? 'create';
 

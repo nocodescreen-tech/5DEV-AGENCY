@@ -20,7 +20,11 @@ import { chromium } from 'playwright-core';
 const API = process.env.E2E_API ?? 'http://127.0.0.1:4000';
 const WEB = process.env.E2E_WEB ?? 'http://localhost:5173';
 const EMAIL = process.env.E2E_EMAIL ?? 'admin@5dev.com';
-const PASSWORD = process.env.E2E_PASSWORD ?? '5dev-Studio-2026!';
+const PASSWORD = process.env.E2E_PASSWORD;
+if (!PASSWORD) {
+  console.error('E2E_PASSWORD requis : E2E_PASSWORD=... npm run e2e');
+  process.exit(2);
+}
 
 const results = [];
 const record = (ok, label, detail = '') => {

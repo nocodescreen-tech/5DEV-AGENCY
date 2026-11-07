@@ -190,7 +190,13 @@ console.log('✓ schéma appliqué (base + écosystème + workspace)');
 
 // 2. compte propriétaire
 const email = process.env.ADMIN_EMAIL ?? 'admin@5dev.com';
-const password = process.env.ADMIN_PASSWORD ?? 'ChangezMoi2026!';
+// Aucun mot de passe par défaut : généré au premier lancement, affiché une seule fois.
+const generated = randomBytes(12).toString('base64url');
+const password = process.env.ADMIN_PASSWORD ?? generated;
+if (!process.env.ADMIN_PASSWORD) {
+  console.log(`⚠ mot de passe généré pour ${email} : ${generated}`);
+  console.log('  note-le maintenant, il ne sera plus affiché. Change-le après la première connexion.');
+}
 const exists = await client.query('select id from users where lower(email) = lower($1)', [email]);
 if (exists.rowCount === 0) {
   await client.query(

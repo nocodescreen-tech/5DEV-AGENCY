@@ -55,7 +55,7 @@ const itemVariants = {
 export function StaggerGroup({ children, className = '', as = 'div' }: { children: ReactNode; className?: string; as?: 'div' | 'ul' | 'ol' }) {
   const Tag = motion[as];
   return (
-    <Tag className={className} variants={groupVariants} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px -8% 0px' }}>
+    <Tag className={className} data-stagger="on" variants={groupVariants} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px -8% 0px' }}>
       {children}
     </Tag>
   );
@@ -64,7 +64,7 @@ export function StaggerGroup({ children, className = '', as = 'div' }: { childre
 export function StaggerItem({ children, className = '', as = 'div' }: { children: ReactNode; className?: string; as?: 'div' | 'li' | 'article' }) {
   const Tag = motion[as];
   return (
-    <Tag className={className} variants={itemVariants}>
+    <Tag className={className} data-stagger-item="on" variants={itemVariants}>
       {children}
     </Tag>
   );

@@ -15,6 +15,7 @@ import {
 import { apiGet } from '../lib/api';
 import type { Category, Project, Service } from '../lib/types';
 import { Accordion, EmptyState, MediaImage, Reveal, Skeleton, TiltCard } from '../components/ui';
+import { SplitHeadline } from '../components/SplitHeadline';
 
 /* --------------------------------------------------------------- compteur */
 
@@ -148,22 +149,23 @@ export default function Home() {
       {/* ---------------------------------------------------------- hero */}
       <section className="relative overflow-hidden border-b border-line/70">
         <div className="mx-auto grid max-w-[1240px] items-center gap-10 px-5 pb-16 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:pb-24 lg:pt-20">
-          <div>
-            <div>
+          <div className="hero-seq">
+            <div style={{ ['--i' as string]: 0 }}>
               <p className="eyebrow flex items-center gap-2 text-brand">
                 <MapPin className="size-3.5" aria-hidden /> Matadi · République démocratique du Congo
               </p>
             </div>
 
-            <div>
-              <h1 className="mt-5 font-extrabold tracking-[-0.035em] text-[clamp(1.95rem,4.1vw,3.35rem)] leading-[1.05]">
-                Les bonnes idées méritent mieux
-                <br />
-                que de rester <span className="text-brand">des idées</span>.
-              </h1>
+            <div style={{ ['--i' as string]: 1 }}>
+              <SplitHeadline
+                text="Les bonnes idées méritent mieux que de rester des idées."
+                accent="idées"
+                step={55}
+                className="mt-5 font-extrabold tracking-[-0.035em] text-[clamp(1.95rem,4.1vw,3.35rem)]"
+              />
             </div>
 
-            <div>
+            <div style={{ ['--i' as string]: 2 }}>
               <p className="lead mt-6 max-w-[46ch]">
                 Un projet en tête ? Une activité à faire évoluer ? On réunit la technique, la
                 créativité et le savoir-faire pour construire quelque chose qui vous ressemble — et
@@ -171,7 +173,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div>
+            <div style={{ ['--i' as string]: 3 }}>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link to="/devis" className="btn-primary">
                   Parlons de votre projet <ArrowRight className="size-4" aria-hidden />
@@ -182,7 +184,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div>
+            <div style={{ ['--i' as string]: 4 }}>
               <dl className="mt-10 flex flex-wrap gap-x-10 gap-y-4">
                 {[
                   { k: 'Pôles d’activité', v: categories.length || 4 },
@@ -202,7 +204,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="hero-visual relative">
             <div className="relative">
               <MediaImage
                 slug="accueil-conseil"
@@ -213,7 +215,7 @@ export default function Home() {
                 priority
                 className="aspect-[4/3] w-full rounded-2xl"
               />
-              <div className="absolute -bottom-5 -left-4 hidden max-w-[16rem] rounded-xl border border-line bg-paper p-4 shadow-lg sm:block">
+              <div className="float-soft absolute -bottom-5 -left-4 hidden max-w-[16rem] rounded-xl border border-line bg-paper p-4 shadow-lg sm:block">
                 <p className="text-[11px] uppercase tracking-wider text-muted">Le principe</p>
                 <p className="mt-1 text-sm font-medium leading-snug">
                   Pas de maquette qui ne fonctionne pas. Ce qui est livré tourne.
@@ -224,11 +226,12 @@ export default function Home() {
         </div>
       </section>
 
+
       {/* ------------------------------------------------------- piliers */}
       <section className="border-b border-line/70">
         <div className="mx-auto max-w-[1240px] px-5 py-16 lg:py-20">
           <Reveal>
-            <p className="eyebrow">Quatre pôles</p>
+            <p className="eyebrow rule-in">Quatre pôles</p>
             <h2 className="display-2 mt-3 max-w-[26ch]">On ne fait pas du digital pour faire joli.</h2>
           </Reveal>
 
@@ -263,7 +266,7 @@ export default function Home() {
         <div className="mx-auto max-w-[1240px] px-5 py-16 lg:py-20">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <Reveal>
-              <p className="eyebrow">Catalogue</p>
+              <p className="eyebrow rule-in">Catalogue</p>
               <h2 className="display-2 mt-3">Ce qu’on peut construire ensemble.</h2>
             </Reveal>
             <Reveal delay={80}>
@@ -279,7 +282,7 @@ export default function Home() {
               : services
                   .slice(0, 6)
                   .map((s, i) => (
-                    <Reveal key={s.id} delay={i * 50}>
+                    <Reveal key={s.id} delay={i * 50} style={{ ['--i' as string]: i }}>
                       <TiltCard className="h-full rounded-xl" max={10}>
                         <Link
                           to="/services"
@@ -309,7 +312,7 @@ export default function Home() {
       <section className="border-b border-line/70">
         <div className="mx-auto max-w-[1240px] px-5 py-16 lg:py-20">
           <Reveal>
-            <p className="eyebrow">Réalisations</p>
+            <p className="eyebrow rule-in">Réalisations</p>
             <h2 className="display-2 mt-3 max-w-[26ch]">Des projets qu’on peut visiter.</h2>
             <p className="lead mt-4 max-w-[58ch]">
               Chaque projet publié ici est un site réellement livré, avec son adresse. Nous
@@ -423,7 +426,7 @@ export default function Home() {
       <section className="border-b border-line/70">
         <div className="mx-auto max-w-[1240px] px-5 py-16 lg:py-20">
           <Reveal>
-            <p className="eyebrow">Méthode</p>
+            <p className="eyebrow rule-in">Méthode</p>
             <h2 className="display-2 mt-3 max-w-[22ch]">Quatre étapes, aucune zone d’ombre.</h2>
           </Reveal>
 
@@ -447,7 +450,7 @@ export default function Home() {
         <div className="mx-auto grid max-w-[1240px] gap-10 px-5 py-16 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16 lg:py-20">
           <div>
             <Reveal>
-              <p className="eyebrow">Engagements</p>
+              <p className="eyebrow rule-in">Engagements</p>
               <h2 className="display-2 mt-3">Ce que vous pouvez exiger de nous.</h2>
               <p className="lead mt-4 max-w-[40ch]">
                 Ces engagements ne sont pas des slogans : chacun correspond à une pratique vérifiable
@@ -485,7 +488,7 @@ export default function Home() {
       <section className="border-b border-line/70">
         <div className="mx-auto grid max-w-[1240px] gap-10 px-5 py-16 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16 lg:py-20">
           <Reveal>
-            <p className="eyebrow">Questions fréquentes</p>
+            <p className="eyebrow rule-in">Questions fréquentes</p>
             <h2 className="display-2 mt-3">Ce qu’on nous demande souvent.</h2>
             <p className="lead mt-4 max-w-[34ch]">
               Vous ne trouvez pas votre question ? Écrivez-nous : on répond nous-mêmes, pas un robot,

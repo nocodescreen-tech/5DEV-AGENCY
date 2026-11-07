@@ -27,7 +27,7 @@ export default function APropos() {
 
   return (
     <div className="container-x py-14 sm:py-20">
-      <p className="eyebrow">À propos</p>
+      <p className="eyebrow rule-in">À propos</p>
       <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
         Une petite équipe, basée à Matadi, qui aime les choses bien faites.
       </h1>

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Check, Loader2, X } from 'lucide-react';
 
 type State = 'idle' | 'working' | 'done' | 'error';
@@ -61,7 +62,7 @@ export function ConfirmDialog({
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={title}>
       <button
         type="button"
@@ -125,6 +126,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

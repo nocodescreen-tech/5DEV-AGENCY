@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Info, Plus } from 'lucide-react';
 
 /* ------------------------------------------------------------- révélation */
@@ -8,11 +9,13 @@ export function Reveal({
   delay = 0,
   className = '',
   as: Tag = 'div',
+  style,
 }: {
   children: ReactNode;
   delay?: number;
   className?: string;
   as?: 'div' | 'section' | 'li' | 'article' | 'header';
+  style?: CSSProperties;
 }) {
   const ref = useRef<HTMLElement | null>(null);
   const [seen, setSeen] = useState(false);
@@ -49,7 +52,7 @@ export function Reveal({
     <Tag
       ref={ref as never}
       className={`reveal ${seen ? 'is-in' : ''} ${className}`}
-      style={{ ['--reveal-delay' as string]: `${delay}ms` }}
+      style={{ ['--reveal-delay' as string]: `${delay}ms`, ...style }}
     >
       {children}
     </Tag>
@@ -293,7 +296,9 @@ export function Modal({
   }, [open, onClose]);
 
   if (!open) return null;
-  return (
+  // rendu hors de l'arbre : `position: fixed` reste ancré à la fenêtre même si un
+  // parent a un transform ou transform-style: preserve-3d (cas des cartes 3D).
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={title}>
       <button type="button" aria-label="Fermer" className="modal-backdrop absolute inset-0 bg-ink/60 backdrop-blur-sm" onClick={onClose} />
       <div className="modal-panel relative w-full max-w-lg rounded-t-2xl bg-paper p-6 shadow-2xl sm:rounded-2xl">
@@ -305,6 +310,7 @@ export function Modal({
         </div>
         <div className="mt-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

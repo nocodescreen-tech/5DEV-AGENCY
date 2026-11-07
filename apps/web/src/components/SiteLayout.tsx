@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Menu, X } from 'lucide-react';
 import { apiGet } from '../lib/api';
 import type { Settings } from '../lib/types';
@@ -31,21 +31,61 @@ export default function SiteLayout() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const progressRef = useRef<HTMLSpanElement | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+  const [indicator, setIndicator] = useState({ x: 0, w: 0, visible: false });
 
   useEffect(() => setOpen(false), [location.pathname]);
 
+  // barre de progression de lecture + en-tête condensé (une seule écoute, rAF)
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const el = document.documentElement;
+        const max = el.scrollHeight - window.innerHeight;
+        const ratio = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+        if (progressRef.current) progressRef.current.style.transform = `scaleX(${ratio.toFixed(4)})`;
+        setScrolled(window.scrollY > 12);
+      });
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, []);
+
+  // indicateur glissant : on mesure le lien actif réel, jamais une position devinée
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const measure = () => {
+      const active = nav.querySelector<HTMLAnchorElement>('[aria-current="page"]');
+      if (!active) {
+        setIndicator((i) => ({ ...i, visible: false }));
+        return;
+      }
+      setIndicator({ x: active.offsetLeft, w: active.offsetWidth, visible: true });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(nav);
+    return () => ro.disconnect();
+  }, [location.pathname]);
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
+      <span ref={progressRef} className="scroll-progress" aria-hidden />
+
       <header
-        className={`sticky top-0 z-40 transition-[background-color,box-shadow,border-color] duration-300 ${
-          scrolled ? 'border-b border-line bg-paper/85 backdrop-blur-md' : 'border-b border-transparent bg-transparent'
+        className={`site-header sticky top-0 z-40 ${
+          scrolled ? 'is-scrolled border-b border-line bg-paper/85 backdrop-blur-md' : 'border-b border-transparent bg-transparent'
         }`}
       >
         <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between gap-4 px-5">
@@ -54,13 +94,23 @@ export default function SiteLayout() {
             <span className="mt-0.5 size-1.5 rounded-full bg-brand" aria-hidden />
           </Link>
 
-          <nav className="hidden items-center gap-7 md:flex" aria-label="Navigation principale">
+          <nav ref={navRef} className="nav-list hidden items-center gap-7 md:flex" aria-label="Navigation principale">
+            <span
+              className="nav-indicator"
+              aria-hidden
+              style={{
+                opacity: indicator.visible ? 1 : 0,
+                width: `${indicator.w}px`,
+                transform: `translateX(${indicator.x}px)`,
+              }}
+            />
             {NAV.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                className={({ isActive }) => `nav-link text-sm ${isActive ? 'font-semibold text-ink' : 'text-ink/70'}`}
+                viewTransition
+                className={({ isActive }) => `nav-item text-sm ${isActive ? 'font-semibold text-ink' : 'text-ink/70'}`}
               >
                 {item.label}
               </NavLink>
@@ -87,20 +137,22 @@ export default function SiteLayout() {
 
         <div
           id="menu-mobile"
-          className={`overflow-hidden border-t border-line bg-paper transition-[grid-template-rows] duration-300 md:hidden ${
-            open ? 'grid grid-rows-[1fr]' : 'grid grid-rows-[0fr]'
+          className={`mobile-menu overflow-hidden border-t border-line bg-paper transition-[grid-template-rows] duration-300 md:hidden ${
+            open ? 'is-open grid grid-rows-[1fr]' : 'grid grid-rows-[0fr]'
           }`}
           aria-hidden={!open}
         >
           <div className="overflow-hidden">
             <ul className="mx-auto max-w-[1240px] px-5 py-3">
-              {NAV.map((item) => (
+              {NAV.map((item, i) => (
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
                     end={item.end}
+                    viewTransition
+                    style={{ ['--i' as string]: i }}
                     className={({ isActive }) =>
-                      `block border-b border-line/60 py-3 text-sm ${isActive ? 'font-semibold text-brand' : ''}`
+                      `mobile-link block border-b border-line/60 py-3 text-sm ${isActive ? 'font-semibold text-brand' : ''}`
                     }
                   >
                     {item.label}

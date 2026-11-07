@@ -12,7 +12,7 @@ export function Realisations() {
 
   return (
     <div className="container-x py-14 sm:py-20">
-      <p className="eyebrow">Réalisations</p>
+      <p className="eyebrow rule-in">Réalisations</p>
       <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
         Ce qui a été livré, et pour qui.
       </h1>

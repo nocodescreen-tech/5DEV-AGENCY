@@ -89,12 +89,18 @@ export async function chat(
   }
 
   const json = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string; reasoning_content?: string } }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
 
+  // Certains modèles NVIDIA (nemotron omni/lightning, step-5) streament leur
+  // raisonnement dans `reasoning_content` : sans ce repli, `content` est vide et
+  // l'on croit que le modèle n'a rien répondu.
+  const message = json.choices?.[0]?.message;
+  const text = (message?.content ?? '').trim() || (message?.reasoning_content ?? '').trim();
+
   return {
-    text: json.choices?.[0]?.message?.content?.trim() ?? '',
+    text,
     model,
     provider: 'nvidia',
     promptTokens: json.usage?.prompt_tokens ?? null,

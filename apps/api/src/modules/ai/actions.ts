@@ -63,6 +63,136 @@ export const ACTION_SPECS = {
   },
 } as const;
 
+/** ---------------------------------------------------------------- outils de lecture
+ * Requêtes SELECT figées, paramétrées, bornées. Le modèle choisit un nom et des
+ * paramètres validés ; il n'écrit jamais de SQL. Aucune de ces lectures ne modifie
+ * la base et elles n'exigent pas de confirmation.
+ */
+export const READ_TOOLS = {
+  read_stats: {
+    label: 'Compteurs du studio',
+    schema: z.object({}),
+    run: async () =>
+      one(
+        `select
+           (select count(*) from leads where status='new')::int as nouvelles_demandes,
+           (select count(*) from bookings where status='pending')::int as reservations_en_attente,
+           (select count(*) from projects_pm where deleted_at is null and status in ('planning','active'))::int as projets_actifs,
+           (select count(*) from tasks where deleted_at is null and status <> 'done')::int as taches_ouvertes,
+           (select count(*) from tasks where deleted_at is null and status <> 'done' and due_date < current_date)::int as taches_en_retard,
+           (select count(*) from subscribers where status='confirmed')::int as abonnes_confirmes`,
+      ),
+  },
+  read_projects: {
+    label: 'Lister les projets',
+    schema: z.object({
+      statut: z.enum(['planning', 'active', 'paused', 'blocked', 'done', 'archived', 'tous']).default('tous'),
+      limite: z.number().int().min(1).max(30).default(12),
+    }),
+    run: async (p: Record<string, unknown>) =>
+      all(
+        `select code, name, status, priority, due_date, budget_amount, budget_currency
+           from projects_pm
+          where deleted_at is null
+            and ($1 = 'tous' or status = $1)
+          order by created_at desc
+          limit $2`,
+        [String(p.statut ?? 'tous'), Number(p.limite ?? 12)],
+      ),
+  },
+  read_tasks: {
+    label: 'Lister les tâches',
+    schema: z.object({
+      statut: z.enum(['todo', 'doing', 'review', 'blocked', 'done', 'ouvertes']).default('ouvertes'),
+      projet: z.string().max(40).optional(),
+      limite: z.number().int().min(1).max(40).default(20),
+    }),
+    run: async (p: Record<string, unknown>) =>
+      all(
+        `select t.title, t.status, t.priority, t.due_date, p.name as projet
+           from tasks t
+           left join projects_pm p on p.id = t.project_id
+          where t.deleted_at is null
+            and ($1 = 'ouvertes' or t.status = $1)
+            and ($2::text is null or p.code ilike $2 or p.name ilike '%' || $2 || '%')
+          order by t.due_date nulls last, t.created_at desc
+          limit $3`,
+        [String(p.statut ?? 'ouvertes'), p.projet ? String(p.projet) : null, Number(p.limite ?? 20)],
+      ),
+  },
+  read_leads: {
+    label: 'Lister les demandes',
+    schema: z.object({
+      statut: z.enum(['new', 'contacted', 'quoted', 'won', 'lost', 'tous']).default('tous'),
+      limite: z.number().int().min(1).max(30).default(12),
+    }),
+    run: async (p: Record<string, unknown>) =>
+      all(
+        `select id, kind, contact_name, contact_email, status, created_at,
+                left(message, 240) as message
+           from leads
+          where ($1 = 'tous' or status = $1)
+          order by created_at desc
+          limit $2`,
+        [String(p.statut ?? 'tous'), Number(p.limite ?? 12)],
+      ),
+  },
+  read_bookings: {
+    label: 'Lister les réservations',
+    schema: z.object({
+      limite: z.number().int().min(1).max(30).default(10),
+    }),
+    run: async (p: Record<string, unknown>) =>
+      all(
+        `select reference, contact_name, contact_email, shoot_date, status, formula
+           from bookings
+          order by shoot_date desc
+          limit $1`,
+        [Number(p.limite ?? 10)],
+      ),
+  },
+  read_services: {
+    label: 'Lister le catalogue',
+    schema: z.object({}),
+    run: async () =>
+      all(
+        `select s.title, s.price_note, s.duration_label, c.name as categorie
+           from services s
+           left join service_categories c on c.id = s.category_id
+          where s.is_published
+          order by c.position nulls last, s.position nulls last`,
+      ),
+  },
+} as const;
+
+export type ReadToolName = keyof typeof READ_TOOLS;
+
+export function isReadToolName(v: string): v is ReadToolName {
+  return Object.prototype.hasOwnProperty.call(READ_TOOLS, v);
+}
+
+/** Exécute un outil de lecture. Toute erreur de validation est transformée en message clair. */
+export async function runReadTool(name: string, params: unknown): Promise<{ label: string; rows: unknown }> {
+  if (!isReadToolName(name)) throw new AppError(422, 'UNKNOWN_TOOL', `Outil inconnu : ${name}`);
+  const spec = READ_TOOLS[name];
+  const parsed = spec.schema.safeParse(params ?? {});
+  if (!parsed.success) {
+    throw new AppError(422, 'INVALID_PARAMS', `Paramètres invalides pour ${name}.`);
+  }
+  const rows = await spec.run(parsed.data as Record<string, unknown>);
+  return { label: spec.label, rows };
+}
+
+/** Catalogue lisible pour le prompt système : noms, paramètres, usage. */
+export function readToolsForPrompt(): string {
+  return Object.entries(READ_TOOLS)
+    .map(([name, spec]) => {
+      const shape = Object.keys((spec.schema as unknown as { shape?: Record<string, unknown> }).shape ?? {});
+      return `- ${name}${shape.length ? ` (${shape.join(', ')})` : ' (aucun paramètre)'} : ${spec.label}`;
+    })
+    .join('\n');
+}
+
 export type ActionName = keyof typeof ACTION_SPECS;
 
 export function isActionName(v: string): v is ActionName {

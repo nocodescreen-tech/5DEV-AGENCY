@@ -7,6 +7,8 @@ import { NvidiaError, listModels, streamChat, type ChatMessage } from './ai/prov
 import { writeSecret, secretInfo, deleteSecret, readSecret } from '../lib/secrets.js';
 import { invalidateKeyCache } from './ai/providers/nvidia.js';
 import { ACTION_SPECS, auditAction, describeAction, executeAction, extractAction } from './ai/actions.js';
+import { readToolsForPrompt, runReadTool } from './ai/actions.js';
+import { chat as chatOnce } from './ai/providers/nvidia.js';
 
 export const aiChatRouter: Router = Router();
 
@@ -569,3 +571,159 @@ aiChatRouter.delete('/admin/ai/key', requireAdmin, async (_req, res, next) => {
     next(err);
   }
 });
+
+/* ---------------------------------------------------------------------------------------
+ * Mode agent : le modèle peut CONSULTER la base (outils de lecture) avant de répondre,
+ * puis proposer une action qui reste soumise à confirmation humaine.
+ *
+ * Boucle bornée (3 tours maximum), aucun SQL libre, aucune écriture automatique.
+ * ------------------------------------------------------------------------------------- */
+
+const agentSchema = z.object({
+  conversation_id: z.string().uuid(),
+  message: z.string().min(1).max(4000),
+});
+
+const AGENT_SYSTEM = `Tu es l'assistant interne de 5DEV (agence numérique à Matadi).
+Tu réponds en français, de façon concise et concrète, avec des chiffres réels.
+
+Pour consulter les données du studio, tu peux demander un outil de lecture en émettant
+exactement ce bloc JSON, seul sur sa ligne :
+
+\`\`\`tool
+{"tool": "read_stats", "params": {}}
+\`\`\`
+
+Outils disponibles :
+${''}__TOOLS__
+
+Après le résultat, tu continues ta réponse normalement. Tu peux enchaîner plusieurs lectures
+(maximum 3). Si une action modifierait la base, tu ne l'exécutes pas : tu la proposes au format
+d'action (bloc action) et tu attends la confirmation de l'utilisateur.
+N'invente jamais une valeur : si une donnée n'est pas dans les résultats, dis-le.`;
+
+aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = agentSchema.safeParse(req.body);
+    if (!parsed.success) throw new AppError(422, 'INVALID', 'Message ou conversation invalide.');
+    const conv = await ownConversation(parsed.data.conversation_id, req.user?.id);
+    const model = conv.model_id ?? (await one<{ model_id: string }>(
+      `select model_id from ai_models where is_default and is_active limit 1`,
+    ))?.model_id;
+    if (!model) throw new AppError(409, 'NO_MODEL', 'Aucun modèle actif : configurez-en un.');
+
+    await one(
+      `insert into ai_messages(conversation_id, role, content) values($1,'user',$2)`,
+      [conv.id, parsed.data.message],
+    );
+
+    const history = await all<{ role: string; content: string }>(
+      `select role, content from ai_messages where conversation_id=$1 order by created_at limit 24`,
+      [conv.id],
+    );
+
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: conv.system_prompt?.trim()
+          ? `${conv.system_prompt.trim()}\n\n${AGENT_SYSTEM.replace('__TOOLS__', readToolsForPrompt())}`
+          : AGENT_SYSTEM.replace('__TOOLS__', readToolsForPrompt()),
+      },
+      ...history.map((m) => ({ role: m.role as ChatMessage['role'], content: m.content })),
+    ];
+
+    const steps: { tool: string; label: string; rows: number }[] = [];
+    let answer = '';
+
+    for (let turn = 0; turn < 3; turn++) {
+      const out = await chatOnce(model, messages, {
+        temperature: Number(conv.temperature) || 0.4,
+        maxTokens: Number(conv.max_tokens) || 900,
+      });
+      answer = out.text;
+
+      const call = extractToolCall(out.text);
+      if (!call) break;
+
+      let result: { label: string; rows: unknown };
+      try {
+        result = await runReadTool(call.tool, call.params);
+      } catch {
+        messages.push({ role: 'assistant', content: out.text });
+        messages.push({
+          role: 'user',
+          content: `L'outil ${call.tool} a refusé la demande (paramètres invalides). Corrige les paramètres ou réponds sans lui.`,
+        });
+        continue;
+      }
+
+      const count = Array.isArray(result.rows) ? result.rows.length : 1;
+      steps.push({ tool: call.tool, label: result.label, rows: count });
+
+      messages.push({ role: 'assistant', content: out.text });
+      messages.push({
+        role: 'user',
+        content: `Résultat de ${call.tool} (${result.label}) :\n${JSON.stringify(result.rows).slice(0, 3500)}`,
+      });
+    }
+
+    // une proposition d'action éventuelle reste à confirmer, jamais exécutée ici
+    const proposal = extractAction(answer);
+    const clean = answer.replace(/```(?:tool|action|json)?[\s\S]*?```/g, '').trim() || answer.trim();
+
+    await one(
+      `insert into ai_messages(conversation_id, role, content) values($1,'assistant',$2)`,
+      [conv.id, clean],
+    );
+    await one(`update ai_conversations set updated_at = now() where id=$1`, [conv.id]);
+
+    res.json({
+      ok: true,
+      data: {
+        text: clean,
+        steps,
+        proposal: proposal ? { name: proposal.name, params: proposal.params } : null,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Extrait un appel d'outil de lecture depuis un bloc ```tool {json} ``` . */
+function extractToolCall(raw: string): { tool: string; params: unknown } | null {
+  const blocks = [...raw.matchAll(/```(?:tool|json)?\s*([\s\S]*?)```/g)];
+  const candidates = blocks.length ? blocks.map((m) => m[1] ?? '') : [raw];
+  for (const c of candidates) {
+    const start = c.indexOf('{');
+    if (start < 0) continue;
+    // balayage à accolades équilibrées (même logique que les actions)
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    for (let i = start; i < c.length; i++) {
+      const ch = c[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === '\\') esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          try {
+            const obj = JSON.parse(c.slice(start, i + 1)) as { tool?: string; params?: unknown };
+            if (obj && typeof obj.tool === 'string') return { tool: obj.tool, params: obj.params ?? {} };
+          } catch {
+            /* on continue */
+          }
+          break;
+        }
+      }
+    }
+  }
+  return null;
+}

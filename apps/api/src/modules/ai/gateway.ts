@@ -28,6 +28,17 @@ type TaskConfig = {
 };
 
 /**
+ * Identifiants réellement disponibles sur ce compte NVIDIA NIM, vérifiés par un
+ * appel court (scripts/probe-models.mjs) : les anciens `meta/llama-3.1-8b-instruct`
+ * et `mistralai/mistral-nemo-12b-instruct` ont atteint leur fin de vie (410 Gone),
+ * et `nvidia/llama-3.1-nemotron-70b-instruct` répond 404 malgré sa présence au
+ * catalogue. Ne pas les remettre sans rejouer la sonde.
+ */
+const M_FAST = 'nvidia/nemotron-3.5-bolt-e4b';
+const M_MID = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning';
+const M_BIG = 'nvidia/nemotron-3-ultra-550b-a55b';
+
+/**
  * Registre des modèles par tâche.
  * Les identifiants sont ceux du catalogue NVIDIA NIM ; `/api/v1/ai/status`
  * vérifie lesquels sont réellement accessibles avec la clé du compte.
@@ -36,7 +47,7 @@ export const TASKS: Record<AiTask, TaskConfig> = {
   classify_lead: {
     label: 'Classer une demande',
     description: 'Attribue un pôle et une priorité à une demande entrante.',
-    models: ['meta/llama-3.1-8b-instruct', 'mistralai/mistral-nemo-12b-instruct'],
+    models: [M_FAST, M_MID],
     system:
       'Tu classes des demandes entrantes pour un studio digital (développement web, solutions digitales, croissance digitale, photographie). Réponds uniquement en JSON compact: {"pole":"web|solutions|growth|photo|autre","priorite":"basse|normale|haute","resume":"une phrase"}.',
     maxTokens: 220,
@@ -44,7 +55,7 @@ export const TASKS: Record<AiTask, TaskConfig> = {
   summarize: {
     label: 'Résumer un échange',
     description: 'Résume un fil de messages en points actionnables.',
-    models: ['meta/llama-3.1-8b-instruct', 'nvidia/llama-3.1-nemotron-70b-instruct'],
+    models: [M_FAST, M_MID],
     system:
       'Tu résumes des échanges professionnels en français, en 3 puces maximum, sans inventer d’information absente du texte.',
     maxTokens: 300,
@@ -52,7 +63,7 @@ export const TASKS: Record<AiTask, TaskConfig> = {
   draft_reply: {
     label: 'Proposer une réponse client',
     description: 'Rédige un brouillon de réponse à valider par un humain.',
-    models: ['nvidia/llama-3.1-nemotron-70b-instruct', 'meta/llama-3.1-8b-instruct'],
+    models: [M_BIG, M_MID],
     system:
       'Tu rédiges des réponses professionnelles en français pour un studio digital. Ton direct, courtois, sans promesse de prix ni de délai non fournie. Le texte est un brouillon à valider par un humain : ne prétends jamais qu’un envoi a eu lieu.',
     maxTokens: 500,
@@ -60,7 +71,7 @@ export const TASKS: Record<AiTask, TaskConfig> = {
   draft_email: {
     label: 'Rédiger un email',
     description: 'Produit un email transactionnel à partir d’un contexte.',
-    models: ['meta/llama-3.1-8b-instruct', 'nvidia/llama-3.1-nemotron-70b-instruct'],
+    models: [M_BIG, M_FAST],
     system:
       'Tu rédiges des emails transactionnels en français, en texte simple (pas de HTML), maximum 160 mots, avec une seule action attendue du destinataire.',
     maxTokens: 450,
@@ -68,7 +79,7 @@ export const TASKS: Record<AiTask, TaskConfig> = {
   draft_newsletter: {
     label: 'Rédiger une newsletter',
     description: 'Propose un sujet et un corps de newsletter.',
-    models: ['nvidia/llama-3.1-nemotron-70b-instruct', 'meta/llama-3.1-8b-instruct'],
+    models: [M_BIG, M_MID],
     system:
       'Tu rédiges des newsletters sobres pour un studio digital. Aucune statistique inventée, aucun témoignage inventé. Réponds en JSON: {"sujet":"...","intro":"...","sections":[{"titre":"...","texte":"..."}]}.',
     maxTokens: 900,
@@ -76,7 +87,7 @@ export const TASKS: Record<AiTask, TaskConfig> = {
   suggest_content: {
     label: 'Suggérer du contenu',
     description: 'Idées de contenus marketing à partir d’un thème.',
-    models: ['meta/llama-3.1-8b-instruct'],
+    models: [M_FAST, M_BIG],
     system:
       'Tu proposes des idées de contenus concrets (5 maximum) pour un studio digital en RDC. Pas de promesses de résultats chiffrés.',
     maxTokens: 500,
@@ -84,7 +95,7 @@ export const TASKS: Record<AiTask, TaskConfig> = {
   project_plan: {
     label: 'Planifier un projet',
     description: 'Transforme un cahier des charges en étapes et tâches.',
-    models: ['nvidia/llama-3.1-nemotron-70b-instruct', 'meta/llama-3.1-8b-instruct'],
+    models: [M_BIG, M_MID],
     system:
       'Tu es chef de projet technique. À partir d’un besoin, propose un plan réaliste. Réponds uniquement en JSON: {"etapes":[{"nom":"...","objectif":"...","taches":["..."]}]} — 4 à 8 étapes, 3 à 6 tâches par étape. Aucune estimation de prix ni de délai chiffré inventé.',
     maxTokens: 1200,
@@ -92,7 +103,7 @@ export const TASKS: Record<AiTask, TaskConfig> = {
   extract_lead: {
     label: 'Extraire les informations',
     description: 'Transforme un message libre en champs structurés.',
-    models: ['meta/llama-3.1-8b-instruct'],
+    models: [M_FAST, M_BIG],
     system:
       'Extrais les informations d’une demande client. Réponds uniquement en JSON: {"besoin":"...","budget_mentionne":"...","delai":"...","contact_prefere":"..."}. Mets null si absent.',
     maxTokens: 300,

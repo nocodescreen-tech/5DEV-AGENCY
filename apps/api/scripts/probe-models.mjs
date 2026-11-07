@@ -33,15 +33,14 @@ console.log('absents du catalogue  :', absents.join(', ') || 'aucun');
 for (const model of presents) {
   const t0 = Date.now();
   try {
-    const r = await chat({
+    const r = await chat(
       model,
-      messages: [
+      [
         { role: 'system', content: 'Réponds en français, une phrase.' },
         { role: 'user', content: 'Dis simplement : le modèle répond.' },
       ],
-      maxTokens: 40,
-      temperature: 0.2,
-    });
+      { maxTokens: 40, temperature: 0.2, timeoutMs: 30_000 },
+    );
     console.log(`OK    ${model.padEnd(52)} ${Date.now() - t0} ms — ${String(r.text).slice(0, 60).replace(/\s+/g, ' ')}`);
   } catch (e) {
     console.log(`ECHEC ${model.padEnd(52)} ${Date.now() - t0} ms — ${String(e.message).slice(0, 90)}`);

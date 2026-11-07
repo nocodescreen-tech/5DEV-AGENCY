@@ -62,6 +62,8 @@ export default function AdminAIChat() {
   const [renameValue, setRenameValue] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<{ id: string; label: string } | null>(null);
+  const [agentMode, setAgentMode] = useState(true);
+  const [agentSteps, setAgentSteps] = useState<{ tool: string; label: string; rows: number }[]>([]);
   const [pending, setPending] = useState<{ name: string; params: Record<string, unknown>; label: string; sensitive: boolean } | null>(null);
   const [actionState, setActionState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -121,7 +123,25 @@ export default function AdminAIChat() {
     setDraft('');
     setChatError(null);
     setLiveText('');
+    setAgentSteps([]);
     setStreaming(true);
+
+    // mode agent : le serveur consulte la base (outils de lecture) puis répond
+    if (agentMode) {
+      try {
+        const out = await apiPost<{ text: string; steps: { tool: string; label: string; rows: number }[] }>(
+          '/api/v1/admin/ai-chat/agent',
+          { conversation_id: id, message: content },
+        );
+        setAgentSteps(out.steps ?? []);
+        await qc.invalidateQueries({ queryKey: ['ai-conv'] });
+      } catch (err) {
+        setChatError(err instanceof ApiRequestError ? err.message : 'Le mode agent a échoué.');
+      } finally {
+        setStreaming(false);
+      }
+      return;
+    }
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -508,6 +528,27 @@ export default function AdminAIChat() {
               void send();
             }}
           >
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 text-xs text-ink/70">
+                <input
+                  type="checkbox"
+                  checked={agentMode}
+                  onChange={(e) => setAgentMode(e.target.checked)}
+                  className="size-3.5 accent-[#F47721]"
+                />
+                Mode agent — consulter la base avant de répondre
+              </label>
+              {agentSteps.length > 0 && (
+                <span className="inline-flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+                  {agentSteps.map((st, i) => (
+                    <span key={`${st.tool}-${i}`} className="rounded-full bg-wash px-2 py-0.5">
+                      {st.label}
+                      {st.rows > 1 ? ` · ${st.rows} lignes` : ''}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
             <div className="flex items-end gap-2">
               <textarea
                 className="field min-h-[44px] flex-1 resize-y text-sm"

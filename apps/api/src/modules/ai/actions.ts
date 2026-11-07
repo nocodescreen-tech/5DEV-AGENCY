@@ -32,6 +32,7 @@ export const ACTION_SPECS = {
     label: 'Supprimer une tâche',
     schema: z.object({ task_id: z.string().uuid() }),
     describe: () => 'Supprimer définitivement la tâche',
+    sensitive: true,
   },
   project_set_status: {
     label: 'Changer le statut d’un projet',
@@ -71,6 +72,40 @@ export const ACTION_SPECS = {
       due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     }),
     describe: (p: Record<string, unknown>) => `Créer le jalon « ${p.title} »`,
+  },
+  lead_reply_email: {
+    label: 'Répondre à une demande par email',
+    schema: z.object({
+      lead_id: z.string().uuid(),
+      subject: z.string().min(2).max(180),
+      body: z.string().min(10).max(6000),
+    }),
+    describe: (p: Record<string, unknown>) => `Répondre à la demande ${String(p.lead_id).slice(0, 8).toUpperCase()}`,
+    sensitive: true,
+  },
+  lead_set_status: {
+    label: 'Changer le statut d’une demande',
+    schema: z.object({
+      lead_id: z.string().uuid(),
+      status: z.enum(['new', 'contacted', 'quoted', 'won', 'lost']),
+    }),
+    describe: (p: Record<string, unknown>) => `Passer la demande en « ${p.status} »`,
+  },
+  lead_note: {
+    label: 'Ajouter une note interne à une demande',
+    schema: z.object({
+      lead_id: z.string().uuid(),
+      note: z.string().min(2).max(2000),
+    }),
+    describe: () => 'Ajouter une note interne à la demande',
+  },
+  booking_set_status: {
+    label: 'Changer le statut d’une réservation',
+    schema: z.object({
+      booking_id: z.string().uuid(),
+      status: z.enum(['pending', 'confirmed', 'cancelled', 'done']),
+    }),
+    describe: (p: Record<string, unknown>) => `Passer la réservation en « ${p.status} »`,
   },
   email_send: {
     label: 'Envoyer un email',
@@ -452,6 +487,71 @@ export async function executeAction(
       if (!row) throw new AppError(404, 'NOT_FOUND', 'Projet introuvable.');
       await auditAction('milestone_create', { project_id: p.project_id, title: p.title }, actorId, null);
       return { summary: `Jalon « ${p.title} » créé`, link: `/admin/projets/${p.project_id}` };
+    }
+    case 'lead_reply_email': {
+      const p = params as { lead_id: string; subject: string; body: string };
+      const lead = await one<{ id: string; contact_email: string; contact_name: string; status: string }>(
+        `select id, contact_email, contact_name, status from leads where id=$1`,
+        [p.lead_id],
+      );
+      if (!lead) throw new AppError(404, 'NOT_FOUND', 'Demande introuvable.');
+      const reference = lead.id.slice(0, 8).toUpperCase();
+      const sent = await sendEmail({
+        to: lead.contact_email,
+        subject: p.subject,
+        html: emailLayout({
+          title: p.subject,
+          body: p.body.split('\n').map((l) => (l.trim() ? `<p>${l}</p>` : '<br/>')).join(''),
+          ctaLabel: 'Répondre à 5DEV',
+          ctaUrl: 'mailto:mio.appservice@gmail.com',
+        }),
+        text: p.body,
+        context: 'lead_reply',
+      });
+      await one(
+        `update leads set status = case when status='new' then 'contacted' else status end,
+                          admin_note = coalesce(admin_note,'') ||
+                          case when coalesce(admin_note,'')='' then '' else E'\n' end ||
+                          'Réponse envoyée le ' || to_char(now(),'DD/MM/YYYY HH24:MI')
+          where id=$1`,
+        [lead.id],
+      );
+      await auditAction('lead_reply_email', { lead_id: lead.id, email: lead.contact_email }, actorId, null);
+      return {
+        summary: `Réponse envoyée à ${lead.contact_name} (${lead.contact_email}) — réf. ${reference}${
+          sent?.providerId ? '' : ' (à vérifier dans /admin/emails)'
+        }`,
+        link: '/admin/demandes',
+      };
+    }
+    case 'lead_set_status': {
+      const p = params as { lead_id: string; status: string };
+      const row = await one<{ id: string }>(`update leads set status=$2 where id=$1 returning id`, [p.lead_id, p.status]);
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Demande introuvable.');
+      await auditAction('lead_set_status', { lead_id: p.lead_id, status: p.status }, actorId, null);
+      return { summary: `Demande passée en « ${p.status} »`, link: '/admin/demandes' };
+    }
+    case 'lead_note': {
+      const p = params as { lead_id: string; note: string };
+      const row = await one<{ id: string }>(
+        `update leads set admin_note = trim(both E'\n' from
+            coalesce(admin_note || E'\n', '') || $2)
+          where id=$1 returning id`,
+        [p.lead_id, p.note],
+      );
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Demande introuvable.');
+      await auditAction('lead_note', { lead_id: p.lead_id }, actorId, null);
+      return { summary: 'Note interne ajoutée à la demande', link: '/admin/demandes' };
+    }
+    case 'booking_set_status': {
+      const p = params as { booking_id: string; status: string };
+      const row = await one<{ id: string; reference: string }>(
+        `update bookings set status=$2 where id=$1 returning id, reference`,
+        [p.booking_id, p.status],
+      );
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Réservation introuvable.');
+      await auditAction('booking_set_status', { booking_id: p.booking_id, status: p.status }, actorId, null);
+      return { summary: `Réservation ${row.reference} passée en « ${p.status} »`, link: '/admin/reservations' };
     }
     case 'email_send': {
       const p = params as { to: string; subject: string; body: string };

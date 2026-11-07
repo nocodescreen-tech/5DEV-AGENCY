@@ -108,6 +108,11 @@ aiChatRouter.get('/admin/ai-chat/conversations/:id', requireAdmin, async (req, r
          from ai_messages where conversation_id=$1 order by created_at`,
       [conv.id],
     );
+    // ouvrir la conversation vaut lecture des réponses de l'assistant
+    await one(
+      `update ai_messages set read_at = now() where conversation_id=$1 and role='assistant' and read_at is null`,
+      [conv.id],
+    ).catch(() => null);
     res.json({ ok: true, data: { conversation: conv, messages } });
   } catch (err) {
     next(err);
@@ -216,12 +221,16 @@ aiChatRouter.post(
         await one(`update ai_conversations set title=$2 where id=$1`, [conv.id, title || 'Nouvelle conversation']);
       }
 
-      const model = conv.model_id ?? 'meta/llama-3.1-8b-instruct';
+      // Le modèle par défaut vient de la table (emplacement `general`) : plus aucun
+      // identifiant mort codé en dur (meta/llama-3.1-8b-instruct = 410 Gone).
+      const defaut = await one<{ model_id: string }>(
+        `select model_id from ai_models where is_default and is_active and model_id is not null limit 1`,
+      );
+      const model = conv.model_id ?? defaut?.model_id ?? 'nvidia/nemotron-3.5-bolt-e4b';
       const msgs: ChatMessage[] = [
         {
           role: 'system',
           content:
-            conv.system_prompt ??
             conv.system_prompt ??
             `Tu es l'assistant interne de 5DEV (agence numérique à Matadi). Tu réponds en français, de façon concise et concrète. Tu n'inventes jamais de prix, de délais, de statistiques ni de témoignages. Si une information manque, tu le dis.
 

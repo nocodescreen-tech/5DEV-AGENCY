@@ -184,6 +184,8 @@ const otp = readFileSync(join(here, '../src/db/schema-otp.sql'), 'utf8');
 await client.query(otp);
 const prefs = readFileSync(join(here, '../src/db/schema-prefs.sql'), 'utf8');
 await client.query(prefs);
+const aiRead = readFileSync(join(here, '../src/db/schema-ai-read.sql'), 'utf8');
+await client.query(aiRead);
 console.log('✓ schéma appliqué (base + écosystème + workspace)');
 
 // 2. compte propriétaire

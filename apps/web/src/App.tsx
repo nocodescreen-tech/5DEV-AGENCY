@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Link, Route, Routes, useLocation } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 import SiteLayout from './components/SiteLayout';
 import Home from './pages/Home';
 
@@ -72,10 +72,8 @@ function NotFound() {
 }
 
 export default function App() {
-  const location = useLocation();
-
   return (
-    <div key={location.pathname} className="page-enter">
+    <div>
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route element={<SiteLayout />}>

@@ -7,6 +7,7 @@ import { ThemeProvider } from './lib/theme';
 import { ToastProvider } from './components/Toaster';
 import './index.css';
 import './design.css';
+import './motion.css';
 
 // Filet global : si un observateur ne s'exécute pas (navigateur ancien, JS partiel),
 // le contenu redevient lisible au lieu de rester invisible.

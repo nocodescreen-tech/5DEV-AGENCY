@@ -5,6 +5,8 @@ import { useSettings } from '../components/SiteLayout';
 import { useToast } from '../components/Toaster';
 import { rules, useFormValidation, type Schema } from '../lib/form-validation';
 
+import { SplitText } from '../components/motion/SplitText';
+import { Magnetic } from '../components/motion/Magnetic';
 type Form = { contact_name: string; contact_email: string; contact_phone: string; message: string };
 
 const SCHEMA: Schema<Form> = {
@@ -70,7 +72,13 @@ export default function Contact() {
       <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
           <p className="eyebrow rule-in">Contact</p>
-          <h1 className="mt-3 text-4xl font-black leading-tight sm:text-5xl">Dites-nous ce qui vous amène.</h1>
+          <SplitText
+            as="h1"
+            text="Dites-nous ce qui vous amène."
+            scramble
+            step={0.06}
+            className="mt-3 text-4xl font-black leading-tight sm:text-5xl"
+          />
           <p className="mt-5 max-w-md text-lg text-ink/65">
             Deux lignes suffisent pour commencer. On lit chaque message et on répond sous 48 heures
             ouvrées — sans engagement, et sans discours de vente.
@@ -204,7 +212,8 @@ export default function Contact() {
                 </p>
               )}
 
-              <button type="submit" disabled={sending} className="btn-primary mt-6 w-full disabled:opacity-60">
+              <Magnetic className="mt-6 w-full" strength={6}>
+              <button type="submit" disabled={sending} className="btn-primary btn-motion mt-6 w-full disabled:opacity-60">
                 {sending ? (
                   <>
                     <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden />
@@ -216,6 +225,7 @@ export default function Contact() {
                   </>
                 )}
               </button>
+              </Magnetic>
               <p className="mt-3 text-center text-[11px] text-muted">
                 Vos coordonnées ne servent qu’à vous répondre. Aucun ajout automatique à une liste.
               </p>

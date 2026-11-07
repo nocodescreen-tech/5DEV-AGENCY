@@ -1,0 +1,369 @@
+/* ============================================================================
+   MOTION 5DEV — couche d'animation vérifiable.
+   Règle : seules `transform`, `opacity` et `filter` sont animées.
+   Tout est neutralisé par prefers-reduced-motion (voir la fin du fichier).
+   ========================================================================== */
+
+/* ------------------------------------------------------------ titres découpés */
+
+.split-headline { margin: 0; }
+.split-wrap { display: inline; }
+.split-word { display: inline-block; white-space: pre; }
+.split-word-inner { display: inline-block; transform-origin: 50% 100%; will-change: transform, opacity, filter; }
+.split-chars { display: inline-flex; }
+.split-char { display: inline-block; transform-origin: 50% 100%; will-change: transform, opacity, filter; }
+.split-headline.is-playing { animation: none; }
+
+/* ---------------------------------------------------------------- cartes 3D */
+
+.t3d-scene {
+  perspective: 1100px;
+  perspective-origin: 50% 40%;
+  display: block;
+}
+.t3d-card {
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: transform;
+  border-radius: 18px;
+  transition: box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.6) inset,
+    0 8px 20px -12px rgb(23 23 23 / 0.28);
+}
+.t3d-card:hover {
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.7) inset,
+    0 34px 60px -28px rgb(23 23 23 / 0.45),
+    0 8px 20px -10px rgb(244 119 33 / 0.28);
+}
+.t3d-layer { transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* reflet qui suit le pointeur */
+.t3d-glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--t3d-glare, 0);
+  transition: opacity 260ms ease-out;
+  background: radial-gradient(
+    46% 46% at var(--mx, 50%) var(--my, 50%),
+    rgb(255 255 255 / 0.55),
+    rgb(255 255 255 / 0.12) 42%,
+    transparent 70%
+  );
+  mix-blend-mode: soft-light;
+}
+/* projecteur orange très diffus, qui donne la profondeur */
+.t3d-spotlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 320ms ease-out;
+  background: radial-gradient(
+    38% 38% at var(--mx, 50%) var(--my, 50%),
+    rgb(244 119 33 / 0.22),
+    transparent 68%
+  );
+}
+.t3d-card:hover .t3d-spotlight { opacity: 1; }
+
+/* --------------------------------------------------------- boutons magnétiques */
+
+.magnetic { position: relative; display: inline-flex; will-change: transform; }
+.magnetic-ripple {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.55);
+  pointer-events: none;
+  animation: ripple-out 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes ripple-out {
+  from { transform: scale(0.4); opacity: 0.75; }
+  to   { transform: scale(26); opacity: 0; }
+}
+
+.btn-motion { position: relative; will-change: transform; }
+.btn-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 34%, rgb(255 255 255 / 0.42) 50%, transparent 66%);
+  transform: translateX(-130%);
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn-motion:hover .btn-shine { transform: translateX(130%); }
+.btn-label { display: inline-flex; align-items: center; gap: 0.5rem; transition: opacity 180ms ease-out; }
+.btn-label.is-loading { opacity: 0.35; }
+.btn-spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgb(255 255 255 / 0.35);
+  border-top-color: #fff;
+  animation: spin 700ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn-motion.is-success { background-color: #1f8a4c !important; }
+
+/* Tous les boutons réagissent : élévation + ombre portée au survol.
+   (mesuré par le script QA : transform et box-shadow changent réellement) */
+.btn,
+.btn-primary,
+.btn-ghost {
+  transition-property: transform, box-shadow, background-color, color, border-color;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn:hover,
+.btn-primary:hover {
+  transform: translateY(-2px) scale(1.015);
+  box-shadow: 0 14px 28px -14px rgb(244 119 33 / 0.65);
+}
+.btn-ghost:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -16px rgb(23 23 23 / 0.5);
+}
+.btn:active,
+.btn-primary:active,
+.btn-ghost:active { transform: translateY(0) scale(0.975); }
+/* la flèche ou l'icône de fin de bouton avance */
+.btn:hover svg:last-child { transform: translateX(3px); }
+.btn svg:last-child { transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ------------------------------------------------------- progression de lecture */
+
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 60;
+  pointer-events: none;
+  background: rgb(23 23 23 / 0.06);
+}
+.scroll-progress-bar {
+  display: block;
+  height: 100%;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--brand-600), var(--brand));
+}
+.scroll-progress-pct {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 220ms ease-out;
+}
+.scroll-progress:hover .scroll-progress-pct { opacity: 1; }
+
+/* ---------------------------------------------------------------- parallaxe */
+
+.parallax { position: relative; overflow: hidden; }
+.parallax-layer { will-change: transform; }
+
+/* ------------------------------------------------------------ section épinglée */
+
+.sticky-story { position: relative; }
+.sticky-story-inner {
+  position: sticky;
+  top: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: clamp(1.5rem, 4vw, 4rem);
+  align-items: center;
+  min-height: 100vh;
+  padding: clamp(2rem, 6vw, 5rem) clamp(1rem, 5vw, 4rem);
+}
+.sticky-story-rail { display: flex; gap: 8px; margin-top: 1.5rem; }
+.sticky-story-dot { width: 8px; height: 8px; border-radius: 999px; display: block; }
+.sticky-story-list { display: grid; gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
+.sticky-story-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  opacity: 0.32;
+  transform: translateY(6px);
+  transition: opacity 320ms ease-out, transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sticky-story-item.is-active { opacity: 1; transform: translateY(0); }
+.sticky-story-num { font-size: 0.75rem; letter-spacing: 0.14em; color: var(--brand); padding-top: 0.35rem; }
+.sticky-story-item h3 { font-size: clamp(1.05rem, 1.6vw, 1.4rem); margin: 0 0 0.35rem; }
+.sticky-story-item p { margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.6; }
+
+/* --------------------------------------------------------- micro-interactions */
+
+.hover-lift {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease-out;
+  will-change: transform;
+}
+.hover-lift:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 26px 44px -26px rgb(23 23 23 / 0.45);
+}
+
+/* lignes de tableau qui entrent en cascade */
+.row-anim { animation: row-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* images : léger zoom et parallaxe interne au survol d'une carte */
+.img-zoom { overflow: hidden; }
+.img-zoom img { transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
+.img-zoom:hover img { transform: scale(1.06); }
+
+/* soulignement qui balaie */
+.sweep { position: relative; }
+.sweep::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 2px;
+  width: 100%;
+  background: var(--brand);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sweep:hover::after { transform: scaleX(1); }
+
+/* champs de formulaire : le focus se déplace, pas seulement la couleur */
+.field { transition: border-color 160ms ease-out, box-shadow 200ms ease-out, transform 200ms ease-out; }
+.field:focus,
+.field:focus-visible {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgb(244 119 33 / 0.18);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+/* ------------------------------------------------------------------ mobile */
+
+@media (max-width: 860px) {
+  .sticky-story-inner { grid-template-columns: 1fr; min-height: auto; position: static; }
+  .sticky-story { height: auto !important; }
+  .sticky-story-item { opacity: 1; transform: none; }
+}
+
+/* -------------------------------------------------------- moins de mouvement */
+
+@media (prefers-reduced-motion: reduce) {
+  .t3d-card,
+  .t3d-glare,
+  .t3d-spotlight,
+  .magnetic,
+  .magnetic-ripple,
+  .btn-shine,
+  .parallax-layer,
+  .hover-lift,
+  .split-word-inner,
+  .split-char {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+  }
+  .scroll-progress-pct { display: none; }
+  .row-anim { animation: none; }
+  .split-headline { opacity: 1 !important; }
+}
+
+/* tactile : pas d'effet de pointeur, les cartes restent stables */
+@media (hover: none) {
+  .t3d-card { box-shadow: 0 10px 26px -18px rgb(23 23 23 / 0.35); }
+  .t3d-glare, .t3d-spotlight { display: none; }
+}
+
+
+/* ============================================================================
+   ADMINISTRATION — entrées de listes et de navigation
+   ========================================================================== */
+
+/* chaque ligne de tableau entre en cascade (les 12 premières avec un décalage) */
+tbody tr { animation: row-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+tbody tr:nth-child(1) { animation-delay: 0ms; }
+tbody tr:nth-child(2) { animation-delay: 35ms; }
+tbody tr:nth-child(3) { animation-delay: 70ms; }
+tbody tr:nth-child(4) { animation-delay: 105ms; }
+tbody tr:nth-child(5) { animation-delay: 140ms; }
+tbody tr:nth-child(6) { animation-delay: 175ms; }
+tbody tr:nth-child(7) { animation-delay: 210ms; }
+tbody tr:nth-child(8) { animation-delay: 245ms; }
+tbody tr:nth-child(9) { animation-delay: 280ms; }
+tbody tr:nth-child(10) { animation-delay: 315ms; }
+tbody tr:nth-child(11) { animation-delay: 350ms; }
+tbody tr:nth-child(12) { animation-delay: 385ms; }
+
+/* navigation latérale : le lien s'avance et gagne une barre orange */
+aside a,
+.nav-item {
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms ease-out, color 180ms ease-out;
+}
+aside a:hover { transform: translateX(3px); }
+
+/* lignes de liste cliquables (Kanban, demandes) : légère élévation */
+.kanban-card,
+.list-row {
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease-out;
+}
+.kanban-card:hover,
+.list-row:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 32px -24px rgb(23 23 23 / 0.4);
+}
+
+/* indicateur de chargement des squelettes : balayage au lieu d'un simple pulse */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgb(23 23 23 / 0.06);
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.65), transparent);
+  animation: shimmer-sweep 1.5s ease-in-out infinite;
+}
+@keyframes shimmer-sweep { to { transform: translateX(100%); } }
+
+/* fenêtres modales : entrée et sortie réelles (classe posée dans Modal) */
+.modal-panel { animation: modal-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-backdrop { animation: backdrop-in 200ms ease-out both; }
+@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* accordéon : ouverture fluide (grid-template-rows animé sur les lignes) */
+.acc-panel > div { transition: opacity 220ms ease-out, transform 260ms cubic-bezier(0.22, 1, 0.36, 1); }
+.acc-item[data-open='false'] .acc-panel > div { opacity: 0; transform: translateY(-4px); }
+
+/* respect du réglage système pour les nouveautés */
+@media (prefers-reduced-motion: reduce) {
+  tbody tr,
+  .shimmer::after,
+  .modal-panel,
+  .modal-backdrop { animation: none !important; }
+  .kanban-card:hover,
+  .list-row:hover,
+  aside a:hover { transform: none !important; }
+}

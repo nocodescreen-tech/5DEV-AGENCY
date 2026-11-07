@@ -15,6 +15,7 @@ import { apiGet } from '../../lib/api';
 import { frDate, frDateTime } from '../../lib/format';
 import { Skeleton } from '../../components/ui';
 
+import { TiltCard3D } from '../../components/motion/TiltCard3D';
 type Dash = {
   kpis: {
     leads_total: number;
@@ -145,10 +146,10 @@ export default function AdminDashboard() {
         {cards.map((c, i) => {
           const Icon = c.icon;
           return (
+            <TiltCard3D key={c.label} className="h-full" lift={6}>
             <Link
-              key={c.label}
               to={c.to}
-              className="group relative overflow-hidden rounded-2xl border border-line bg-paper p-5 transition hover:border-brand/50 hover:shadow-lg"
+              className="group relative block h-full overflow-hidden rounded-2xl border border-line bg-paper p-5 transition hover:border-brand/50 hover:shadow-lg"
               style={{ animation: `page-in .5s var(--ease-out) ${i * 60}ms both` }}
             >
               <div className="flex items-start justify-between">
@@ -167,6 +168,7 @@ export default function AdminDashboard() {
               )}
               <span className="pointer-events-none absolute -right-6 -bottom-8 size-24 rounded-full bg-brand/5 transition group-hover:bg-brand/10" aria-hidden />
             </Link>
+            </TiltCard3D>
           );
         })}
       </div>

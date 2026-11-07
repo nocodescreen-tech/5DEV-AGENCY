@@ -7,6 +7,7 @@ import type { Category, Service } from '../lib/types';
 import { useToast } from '../components/Toaster';
 import { frDate } from '../lib/format';
 
+import { SplitText } from '../components/motion/SplitText';
 type Slot = { slot: 'morning' | 'afternoon' | 'evening'; label: string; available: boolean };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -95,7 +96,7 @@ export default function Reservation() {
     <div className="container-x py-14 sm:py-20">
       <div className="mx-auto max-w-2xl">
         <p className="eyebrow">Photographie</p>
-        <h1 className="mt-3 text-3xl font-black sm:text-4xl">Réserver une séance</h1>
+        <SplitText as="h1" text="Réserver une séance" step={0.07} className="mt-3 text-3xl font-black sm:text-4xl" />
         <p className="mt-3 text-sm text-ink/60">
           Choisissez une date et un créneau. Un créneau déjà réservé n’est pas proposé.
         </p>

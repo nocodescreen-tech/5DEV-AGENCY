@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Info, Plus } from 'lucide-react';
+import { TiltCard3D } from './motion/TiltCard3D';
 
 /* ------------------------------------------------------------- révélation */
 
@@ -30,14 +31,18 @@ export function Reveal({
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
-          if (e.isIntersecting) {
+          // visible, ou déjà dépassé vers le haut : dans les deux cas le contenu doit être là
+          const passed = e.boundingClientRect.bottom < 0;
+          if (e.isIntersecting || passed) {
             setSeen(true);
             io.disconnect();
           }
         }
       },
-      // pré-révélation : on déclenche 25 % avant l'entrée dans l'écran, jamais de blanc au scroll rapide
-      { rootMargin: '25% 0px 25% 0px', threshold: 0 },
+      // marge large : tout ce qui est à moins d'un écran et demi au-dessus ou en dessous
+      // est déjà révélé. Un saut d'ancre ou un glissement rapide de la barre de défilement
+      // ne laisse donc jamais de section vide.
+      { rootMargin: '150% 0px 150% 0px', threshold: 0 },
     );
     io.observe(el);
     // filet de sécurité : jamais de contenu bloqué invisible
@@ -111,8 +116,9 @@ export function MediaImage({
 /* ------------------------------------------------------- carte inclinable */
 
 /**
- * Carte 3D : perspective réelle, reflet qui suit le pointeur, contenu en profondeur.
- * Coupée sur tactile (pas de pointeur fiable) et en prefers-reduced-motion.
+ * Carte 3D : perspective réelle, reflet et projecteur qui suivent le pointeur,
+ * couches enfants flottantes, élévation au survol.
+ * Implémentation dans `components/motion/TiltCard3D.tsx` (couche motion 5DEV).
  */
 export function TiltCard({
   children,
@@ -125,56 +131,10 @@ export function TiltCard({
   max?: number;
   glare?: boolean;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const frame = useRef<number | null>(null);
-  const reduced = useRef(false);
-
-  useEffect(() => {
-    reduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    return () => {
-      if (frame.current) cancelAnimationFrame(frame.current);
-    };
-  }, []);
-
-  function move(e: React.PointerEvent<HTMLDivElement>) {
-    const el = ref.current;
-    if (!el || reduced.current || e.pointerType === 'touch') return;
-    if (frame.current) cancelAnimationFrame(frame.current);
-    const { clientX, clientY } = e;
-
-    frame.current = requestAnimationFrame(() => {
-      const r = el.getBoundingClientRect();
-      const px = (clientX - r.left) / r.width;
-      const py = (clientY - r.top) / r.height;
-      el.style.setProperty('--mx', `${px * 100}%`);
-      el.style.setProperty('--my', `${py * 100}%`);
-      el.style.transform =
-        `perspective(1100px) rotateY(${(px - 0.5) * max}deg) rotateX(${(0.5 - py) * max}deg) ` +
-        `translate3d(0, -6px, 0) scale(1.012)`;
-      el.classList.add('is-tilting');
-    });
-  }
-
-  function leave() {
-    const el = ref.current;
-    if (!el) return;
-    if (frame.current) cancelAnimationFrame(frame.current);
-    el.classList.remove('is-tilting');
-    el.style.transform = '';
-  }
-
   return (
-    <div
-      ref={ref}
-      onPointerMove={move}
-      onPointerLeave={leave}
-      onPointerCancel={leave}
-      className={`card3d ${className}`}
-      style={{ transformStyle: 'preserve-3d' }}
-    >
-      <div className="tilt-inner h-full">{children}</div>
-      {glare && <span className="card3d-shine" aria-hidden />}
-    </div>
+    <TiltCard3D className={className} max={max} glare={glare}>
+      {children}
+    </TiltCard3D>
   );
 }
 

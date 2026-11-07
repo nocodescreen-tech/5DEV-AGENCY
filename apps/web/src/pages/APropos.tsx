@@ -1,23 +1,25 @@
 import { Link } from 'react-router-dom';
 import { useSettings } from '../components/SiteLayout';
-import { Reveal } from '../components/ui';
 
+import { SplitText } from '../components/motion/SplitText';
+import { TiltCard3D } from '../components/motion/TiltCard3D';
+import { StaggerGroup, StaggerItem } from '../components/motion/RevealOnScroll';
 const PRINCIPES = [
   {
-    title: 'Un interlocuteur unique',
-    text: 'La même équipe conçoit, développe, met en ligne et photographie. Pas de chaîne d’intermédiaires.',
+    title: 'La même personne du début à la fin',
+    text: 'Celui qui répond au premier message est aussi celui qui construit et met en ligne. Vous ne racontez pas votre projet à quelqu’un de nouveau à chaque étape.',
   },
   {
-    title: 'Ce qui est écrit est livré',
-    text: 'Le périmètre est écrit avant de commencer. Ce qui n’y figure pas fait l’objet d’un avenant, jamais d’une surprise.',
+    title: 'Ce qui est écrit arrive',
+    text: 'On liste noir sur blanc ce qui est inclus, avant de commencer. Ce qui n’y est pas ne se retrouve jamais sur la facture sans vous avoir demandé.',
   },
   {
-    title: 'Le prix annoncé est tenu',
-    text: 'Devis en USD ou en CDF, taux indiqué, aucune ligne cachée. Le taux appliqué est celui du devis émis.',
+    title: 'Le prix ne bouge pas en route',
+    text: 'Devis en dollars ou en francs congolais, taux affiché. Si le travail change vraiment, on refait un devis ensemble — on ne glisse pas la différence à la fin.',
   },
   {
     title: 'On dit non quand il faut',
-    text: 'Si un besoin sort du périmètre de 5DEV, c’est dit immédiatement plutôt que facturé au rabais.',
+    text: 'Si ce n’est pas dans notre métier, on le dit tout de suite. Mieux vaut vous envoyer ailleurs que prendre un projet qu’on ferait mal.',
   },
 ];
 
@@ -28,9 +30,12 @@ export default function APropos() {
   return (
     <div className="container-x py-14 sm:py-20">
       <p className="eyebrow rule-in">À propos</p>
-      <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
-        Une petite équipe, basée à Matadi, qui aime les choses bien faites.
-      </h1>
+      <SplitText
+        as="h1"
+        text="Une petite équipe, basée à Matadi, qui aime les choses bien faites."
+        step={0.05}
+        className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl"
+      />
       <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink/70">
         5DEV est né d’un constat simple : beaucoup d’entreprises d’ici ont besoin de compétences
         numériques qu’on ne trouve pas facilement au coin de la rue. Alors on a réuni le
@@ -41,14 +46,16 @@ export default function APropos() {
       <div className="mt-14 grid gap-10 lg:grid-cols-[1fr_0.8fr]">
         <div>
           <h2 className="text-2xl font-black">Comment nous travaillons</h2>
-          <div className="mt-6 grid gap-6 sm:grid-cols-2">
-            {PRINCIPES.map((p, i) => (
-              <Reveal key={p.title} delay={i * 0.05} className="border-t border-line pt-4">
-                <h3 className="font-semibold">{p.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink/65">{p.text}</p>
-              </Reveal>
+          <StaggerGroup className="mt-6 grid gap-6 sm:grid-cols-2" as="div">
+            {PRINCIPES.map((p) => (
+              <StaggerItem key={p.title}>
+                <TiltCard3D className="h-full rounded-xl border-t border-line bg-paper p-4" lift={5}>
+                  <h3 className="font-semibold">{p.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-ink/65">{p.text}</p>
+                </TiltCard3D>
+              </StaggerItem>
             ))}
-          </div>
+          </StaggerGroup>
         </div>
 
         <aside className="rounded-2xl bg-wash p-6">

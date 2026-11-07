@@ -6,6 +6,7 @@ import { Modal, Reveal, Skeleton, TiltCard } from '../components/ui';
 import { apiGet } from '../lib/api';
 import type { Category, Service } from '../lib/types';
 
+import { SplitText } from '../components/motion/SplitText';
 /**
  * Page Services — chaque action est un vrai composant :
  *  - onglets de catégorie avec indicateur qui glisse ;
@@ -50,9 +51,12 @@ export default function Services() {
   return (
     <div className="container-x py-14 sm:py-20">
       <p className="eyebrow rule-in">Services</p>
-      <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
-        Voilà ce qu’on sait faire — et ce que vous recevez.
-      </h1>
+      <SplitText
+        as="h1"
+        text="Voilà ce qu’on sait faire — et ce que vous recevez."
+        step={0.06}
+        className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl"
+      />
       <p className="mt-5 max-w-2xl text-lg text-ink/65">
         Pour chaque prestation, vous voyez les livrables avant de payer. Le prix se discute au
         devis, sur le périmètre réel : pas de supplément surprise au milieu du projet.
@@ -284,11 +288,11 @@ export default function Services() {
         </p>
         <h2 className="mt-3 text-2xl font-black sm:text-3xl">Un besoin qui ne figure pas ici ?</h2>
         <p className="mt-3 max-w-xl text-white/65">
-          Décrivez-le : si 5DEV ne sait pas le faire, vous serez fixé tout de suite, sans
-          proposition inutile.
+          Décrivez-le en deux lignes. Si ça sort de notre métier, on vous le dit tout de suite —
+          et si on connaît quelqu’un de sérieux, on vous l’indique.
         </p>
         <Link to="/devis" className="btn-primary mt-7">
-          Écrire à 5DEV <ArrowRight className="size-4" aria-hidden />
+          Parlez-nous de votre besoin <ArrowRight className="size-4" aria-hidden />
         </Link>
       </div>
     </div>

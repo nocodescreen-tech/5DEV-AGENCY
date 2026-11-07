@@ -4,6 +4,9 @@ import { ArrowLeft, ArrowUpRight } from 'lucide-react';
 import { apiGet } from '../lib/api';
 import type { Project } from '../lib/types';
 
+import { SplitText } from '../components/motion/SplitText';
+import { TiltCard3D, TiltLayer } from '../components/motion/TiltCard3D';
+import { StaggerGroup, StaggerItem } from '../components/motion/RevealOnScroll';
 export function Realisations() {
   const { data, isPending } = useQuery({
     queryKey: ['projects'],
@@ -13,9 +16,12 @@ export function Realisations() {
   return (
     <div className="container-x py-14 sm:py-20">
       <p className="eyebrow rule-in">Réalisations</p>
-      <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
-        Ce qui a été livré, et pour qui.
-      </h1>
+      <SplitText
+        as="h1"
+        text="Ce qui a été livré, et pour qui."
+        step={0.07}
+        className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl"
+      />
       <p className="mt-5 max-w-2xl text-lg text-ink/65">
         Seuls les projets terminés et autorisés par le client sont publiés ici.
       </p>
@@ -35,9 +41,11 @@ export function Realisations() {
         </div>
       )}
 
-      <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <StaggerGroup className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {(data ?? []).map((p) => (
-          <Link key={p.id} to={`/realisations/${p.slug}`} className="card group overflow-hidden">
+          <StaggerItem key={p.id} className="h-full">
+            <TiltCard3D className="h-full overflow-hidden rounded-2xl">
+          <Link to={`/realisations/${p.slug}`} className="card group block h-full overflow-hidden">
             <div className="aspect-[4/3] bg-wash">
               {p.cover_url ? (
                 <img
@@ -52,7 +60,7 @@ export function Realisations() {
                 </div>
               )}
             </div>
-            <div className="p-5">
+            <TiltLayer depth={22} className="p-5">
               <div className="flex items-center justify-between">
                 <p className="font-mono text-[11px] uppercase tracking-widest text-brand">
                   {p.category ?? 'Projet'}
@@ -61,10 +69,12 @@ export function Realisations() {
               </div>
               <h2 className="mt-2 font-semibold">{p.title}</h2>
               <p className="mt-1 line-clamp-2 text-sm text-ink/60">{p.summary}</p>
-            </div>
+            </TiltLayer>
           </Link>
+            </TiltCard3D>
+          </StaggerItem>
         ))}
-      </div>
+      </StaggerGroup>
     </div>
   );
 }

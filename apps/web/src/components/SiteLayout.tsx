@@ -6,6 +6,9 @@ import { apiGet } from '../lib/api';
 import type { Settings } from '../lib/types';
 import NewsletterForm from './NewsletterForm';
 import ThemeToggle from './ThemeToggle';
+import { ScrollProgress } from './motion/ScrollProgress';
+import { PageTransition } from './motion/PageTransition';
+import { Magnetic } from './motion/Magnetic';
 
 const NAV = [
   { to: '/', label: 'Accueil', end: true },
@@ -31,23 +34,18 @@ export default function SiteLayout() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
-  const progressRef = useRef<HTMLSpanElement | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const [indicator, setIndicator] = useState({ x: 0, w: 0, visible: false });
 
   useEffect(() => setOpen(false), [location.pathname]);
 
-  // barre de progression de lecture + en-tête condensé (une seule écoute, rAF)
+  // en-tête condensé au défilement (la progression de lecture est gérée par ScrollProgress)
   useEffect(() => {
     let frame = 0;
     const onScroll = () => {
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        const el = document.documentElement;
-        const max = el.scrollHeight - window.innerHeight;
-        const ratio = max > 0 ? Math.min(1, window.scrollY / max) : 0;
-        if (progressRef.current) progressRef.current.style.transform = `scaleX(${ratio.toFixed(4)})`;
         setScrolled(window.scrollY > 12);
       });
     };
@@ -81,7 +79,7 @@ export default function SiteLayout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
-      <span ref={progressRef} className="scroll-progress" aria-hidden />
+      <ScrollProgress />
 
       <header
         className={`site-header sticky top-0 z-40 ${
@@ -90,7 +88,7 @@ export default function SiteLayout() {
       >
         <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between gap-4 px-5">
           <Link to="/" className="flex items-baseline gap-1.5" aria-label="5DEV, accueil">
-            <span className="text-xl font-black tracking-tight">5DEV</span>
+            <span className="text-xl font-black tracking-tight"><span className="text-brand">5</span>DEV</span>
             <span className="mt-0.5 size-1.5 rounded-full bg-brand" aria-hidden />
           </Link>
 
@@ -119,9 +117,11 @@ export default function SiteLayout() {
 
           <div className="flex items-center gap-2">
             <ThemeToggle compact />
-            <Link to="/devis" className="hidden rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand sm:inline-flex">
-              Devis
-            </Link>
+            <Magnetic className="hidden sm:inline-flex" strength={6}>
+              <Link to="/devis" className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand">
+                Devis
+              </Link>
+            </Magnetic>
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
@@ -170,16 +170,16 @@ export default function SiteLayout() {
       </header>
 
       <main className="flex-1">
-        <div key={location.pathname} className="page-transition">
+        <PageTransition>
           <Outlet />
-        </div>
+        </PageTransition>
       </main>
 
       <footer className="border-t border-line bg-ink text-white">
         <div className="mx-auto grid max-w-[1240px] gap-10 px-5 py-14 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="text-lg font-black">
-              5DEV<span className="text-brand">.</span>
+              <span className="text-brand">5</span>DEV<span className="text-brand">.</span>
             </p>
             <p className="mt-3 max-w-[30ch] text-sm leading-relaxed text-white/60">
               Agence numérique basée à Matadi. Développement web, solutions digitales, croissance et

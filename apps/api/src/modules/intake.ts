@@ -4,6 +4,7 @@ import { all, one } from '../db/index.js';
 import { AppError } from '../middlewares/errors.js';
 import { rateLimit, requireAdmin, validate } from '../middlewares/auth.js';
 import { runAutomations } from './automation.js';
+import { emailLayout, sendEmail } from '../lib/email.js';
 
 /* ---------------------------------------------------------------- demandes */
 
@@ -45,7 +46,46 @@ leadsRouter.post(
           l.message,
         ],
       );
-      // automatisations : exécutées hors du chemin de réponse
+      // le studio doit être prévenu : notification dans la console + email réel.
+      // Les deux sont hors du chemin de réponse (l'utilisateur n'attend pas l'email).
+      if (row) {
+        const reference = row.id.slice(0, 8).toUpperCase();
+        const label = l.kind === 'quote' ? 'Demande de devis' : 'Message de contact';
+
+        void all(
+          `insert into notifications(user_id, kind, title, body, link)
+           select u.id, 'lead.created', $1, $2, $3 from users u where u.is_active`,
+          [`${label} — ${l.contact_name}`, `${l.contact_email} · réf. ${reference}`, '/admin/demandes'],
+        ).catch(() => null);
+
+        const inbox = process.env.CONTACT_EMAIL ?? process.env.ADMIN_EMAIL ?? process.env.MAIL_FROM_EMAIL ?? '';
+        if (inbox) {
+          const lines = [
+            `Nom : ${l.contact_name}`,
+            `Email : ${l.contact_email}`,
+            l.contact_phone ? `Téléphone : ${l.contact_phone}` : null,
+            l.budget_amount ? `Budget : ${l.budget_amount} ${l.budget_currency}` : null,
+            `Référence : ${reference}`,
+            '',
+            l.message,
+          ].filter(Boolean) as string[];
+
+          void sendEmail({
+            to: inbox,
+            subject: `5DEV — ${label} de ${l.contact_name} (réf. ${reference})`,
+            html: emailLayout({
+              title: `${label} — réf. ${reference}`,
+              body: lines.map((line) => (line ? `<p>${line}</p>` : '<br/>')).join(''),
+              ctaLabel: 'Ouvrir dans la console',
+              ctaUrl: `${process.env.APP_URL ?? 'http://localhost:5173'}/admin/demandes`,
+            }),
+            text: lines.join('\n'),
+            replyTo: l.contact_email,
+            context: 'lead',
+          }).catch(() => null);
+        }
+      }
+
       if (row) {
         void runAutomations('lead.created', {
           id: row.id,

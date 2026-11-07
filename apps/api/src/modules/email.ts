@@ -115,6 +115,33 @@ emailRouter.post(
   },
 );
 
+/**
+ * Événements de livraison réels (Brevo) : demandé, livré, ouvert, erreur.
+ * C'est la seule façon de savoir si un email est arrivé — un 201 à l'envoi ne
+ * garantit rien quand l'expéditeur n'est pas validé.
+ */
+emailRouter.get('/admin/email-events', requireAdmin, async (_req, res, next) => {
+  try {
+    const key = process.env.BREVO_API_KEY ?? '';
+    if (!key) {
+      res.json({ ok: true, data: { events: [], note: 'Brevo non configuré.' } });
+      return;
+    }
+    const r = await fetch('https://api.brevo.com/v3/smtp/statistics/events?limit=25&sort=desc', {
+      headers: { 'api-key': key, Accept: 'application/json' },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!r.ok) {
+      res.json({ ok: true, data: { events: [], note: `Brevo ${r.status}` } });
+      return;
+    }
+    const json = (await r.json()) as { events?: unknown[] };
+    res.json({ ok: true, data: { events: json.events ?? [] } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 emailRouter.get('/admin/emails/:id', requireAdmin, async (req, res, next) => {
   try {
     const row = await one(`select * from email_outbox where id=$1`, [String(req.params.id)]);

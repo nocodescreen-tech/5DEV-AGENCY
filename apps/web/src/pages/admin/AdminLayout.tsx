@@ -1,4 +1,4 @@
-import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import {
@@ -25,6 +25,7 @@ import {
 import { apiGet, apiPost } from '../../lib/api';
 import ThemeToggle from '../../components/ThemeToggle';
 
+import { PageTransition } from '../../components/motion/PageTransition';
 type Me = {
   user: {
     id: string;
@@ -85,7 +86,6 @@ const COLLAPSE_KEY = 'five.sidebar.collapsed';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
-  const location = useLocation();
   const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
   const [notifOpen, setNotifOpen] = useState(false);
@@ -154,7 +154,7 @@ export default function AdminLayout() {
               {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
             </button>
             <Link to="/admin" className="text-lg font-black">
-              5<span className="text-brand">DEV</span>
+              <span className="text-brand">5</span>DEV
               <span className="ml-3 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">console</span>
             </Link>
           </div>
@@ -286,9 +286,9 @@ export default function AdminLayout() {
             ))}
           </nav>
 
-          <div key={location.pathname} className="page-transition">
+          <PageTransition>
             <Outlet />
-          </div>
+          </PageTransition>
         </main>
       </div>
     </div>

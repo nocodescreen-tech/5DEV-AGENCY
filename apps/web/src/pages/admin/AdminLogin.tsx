@@ -98,7 +98,7 @@ export default function AdminLogin() {
     <div className="grid min-h-dvh lg:grid-cols-2">
       <div className="hidden flex-col justify-between bg-ink p-12 text-white lg:flex">
         <Link to="/" className="text-xl font-black">
-          5<span className="text-brand">DEV</span>
+          <span className="text-brand">5</span>DEV
         </Link>
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-brand">Console 5DEV</p>

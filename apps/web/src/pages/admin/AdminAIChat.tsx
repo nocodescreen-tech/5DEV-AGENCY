@@ -15,6 +15,7 @@ import {
 import { apiDelete, apiGet, apiPatch, apiPost, ApiRequestError } from '../../lib/api';
 import { Markdown } from '../../components/Markdown';
 import { useToast } from '../../components/Toaster';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EmptyState, Skeleton } from '../../components/ui';
 
 type Conversation = {
@@ -60,6 +61,7 @@ export default function AdminAIChat() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
+  const [toDelete, setToDelete] = useState<{ id: string; label: string } | null>(null);
   const [pending, setPending] = useState<{ name: string; params: Record<string, unknown>; label: string; sensitive: boolean } | null>(null);
   const [actionState, setActionState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -234,12 +236,9 @@ export default function AdminAIChat() {
     await qc.invalidateQueries({ queryKey: ['ai-conv'] });
   }
 
-  async function remove(id: string) {
-    if (!confirm('Supprimer définitivement cette conversation ?')) return;
-    await apiDelete(`/api/v1/admin/ai-chat/conversations/${id}`);
-    if (activeId === id) setActiveId(null);
-    await qc.invalidateQueries({ queryKey: ['ai-conv'] });
-    toast.push('success', 'Conversation supprimée.');
+  function remove(id: string) {
+    const cible = (conversations ?? []).find((c) => c.id === id);
+    setToDelete({ id, label: cible?.title ?? 'Cette conversation' });
   }
 
   async function copy(text: string, id: string) {
@@ -537,6 +536,25 @@ export default function AdminAIChat() {
           </form>
         </section>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        title="Supprimer cette conversation ?"
+        description={
+          <>
+            «&nbsp;{toDelete?.label}&nbsp;» et tous ses messages seront définitivement supprimés.
+          </>
+        }
+        onCancel={() => setToDelete(null)}
+        onConfirm={async () => {
+          if (!toDelete) return;
+          await apiDelete(`/api/v1/admin/ai-chat/conversations/${toDelete.id}`);
+          await qc.invalidateQueries({ queryKey: ['ai-conversations'] });
+          if (activeId === toDelete.id) setActiveId(null);
+          setToDelete(null);
+          toast.push('success', 'Conversation supprimée.');
+        }}
+      />
     </div>
   );
 }

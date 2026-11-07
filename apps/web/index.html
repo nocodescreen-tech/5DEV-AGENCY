@@ -23,7 +23,7 @@
       <!-- coque de démarrage : peinte immédiatement, remplacée par React au montage.
            Évite un écran blanc pendant le chargement du bundle. -->
       <div class="boot-shell" aria-hidden="true">
-        <span class="boot-mark">5DEV<span class="boot-dot">.</span></span>
+        <span class="boot-mark"><span class="boot-five">5</span>DEV<span class="boot-dot">.</span></span>
         <span class="boot-bar"></span>
       </div>
     </div>
@@ -44,6 +44,7 @@
         color: #171717;
         text-align: center;
       }
+      .boot-five { color: #f47721; }
       .boot-dot { color: #f47721; }
       .boot-bar {
         display: block;

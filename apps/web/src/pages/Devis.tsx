@@ -7,6 +7,7 @@ import type { Category, Service } from '../lib/types';
 import { useToast } from '../components/Toaster';
 import { money } from '../lib/format';
 
+import { SplitText } from '../components/motion/SplitText';
 type Form = {
   service_slug: string;
   budget_amount: string;
@@ -111,7 +112,7 @@ export default function Devis() {
     <div className="container-x py-14 sm:py-20">
       <div className="mx-auto max-w-2xl">
         <p className="eyebrow">Devis</p>
-        <h1 className="mt-3 text-3xl font-black sm:text-4xl">Décrivez votre projet</h1>
+        <SplitText as="h1" text="Décrivez votre projet" step={0.07} className="mt-3 text-3xl font-black sm:text-4xl" />
         <p className="mt-3 text-sm text-ink/60">
           Trois étapes, deux minutes. Aucun compte à créer.
         </p>

@@ -15,7 +15,9 @@ import {
 import { apiGet } from '../lib/api';
 import type { Category, Project, Service } from '../lib/types';
 import { Accordion, EmptyState, MediaImage, Reveal, Skeleton, TiltCard } from '../components/ui';
-import { SplitHeadline } from '../components/SplitHeadline';
+import { SplitText } from '../components/motion/SplitText';
+import { Parallax, StickyStory } from '../components/motion/Parallax';
+import { TiltLayer } from '../components/motion/TiltCard3D';
 
 /* --------------------------------------------------------------- compteur */
 
@@ -71,59 +73,59 @@ const PILIER_ICONS = [Code2, Server, LineChart, Camera];
 const METHODE = [
   {
     step: '01',
-    title: 'Cadrage',
-    body: 'Un échange court pour comprendre l’activité, les contraintes et ce que le projet doit produire concrètement.',
+    title: 'On se parle',
+    body: 'Une conversation, pas un questionnaire. Votre métier, vos clients, ce qui vous fait perdre du temps.',
   },
   {
     step: '02',
-    title: 'Proposition',
-    body: 'Périmètre écrit, étapes datées, livrables listés. Vous savez ce qui est inclus et ce qui ne l’est pas.',
+    title: 'Vous recevez un devis court',
+    body: 'Ce qu’on fait, ce que ça coûte, pour quand. Si une ligne ne vous va pas, on en discute avant de commencer.',
   },
   {
     step: '03',
-    title: 'Réalisation',
-    body: 'Travail par lots courts, avec un point d’avancement visible et des allers-retours limités aux décisions utiles.',
+    title: 'On construit devant vous',
+    body: 'Le travail avance par petits morceaux. Vous voyez le résultat en cours de route, pas trois mois plus tard.',
   },
   {
     step: '04',
-    title: 'Mise en ligne',
-    body: 'Mise en production, vérifications réelles, remise des accès et de la documentation. Puis suivi.',
+    title: 'On met en ligne ensemble',
+    body: 'On teste sur un vrai téléphone, on vous montre comment changer vos textes, et on reste joignables.',
   },
 ];
 
 const ENGAGEMENTS = [
-  'Un interlocuteur unique, du premier échange à la mise en ligne.',
-  'Un périmètre écrit avant de commencer : pas de facture surprise.',
-  'Des délais annoncés en jours ouvrés, pas en promesses.',
-  'Du code et des contenus qui vous appartiennent : accès et sources remis.',
-  'Aucune photo ni réalisation présentée qui ne serait pas la nôtre.',
-  'Une mise en ligne vérifiée sur téléphone, tablette et ordinateur.',
+  'Une seule personne à appeler, du premier message à la mise en ligne.',
+  'Le prix est fixé avant le premier jour de travail. Il ne bouge pas en cours de route.',
+  'Les délais sont donnés en jours travaillés. Si ça glisse, vous le savez avant, pas après.',
+  'Le domaine, l’hébergement et le code sont à votre nom. Vous partez avec, si un jour vous voulez.',
+  'Aucune photo ni réalisation qui ne soit pas la nôtre. Même si ça fait moins de choses à montrer.',
+  'On regarde le résultat sur un téléphone, une tablette et un ordinateur avant de dire que c’est prêt.',
 ];
 
 const FAQ = [
   {
     q: 'Combien de temps prend un site vitrine ?',
-    a: 'Cela dépend du nombre de pages et de la disponibilité des contenus. Nous annonçons un délai après le cadrage, pas avant : un site de 5 pages avec textes et photos fournis se fait nettement plus vite qu’un site où tout reste à écrire.',
+    a: 'Ça dépend des pages et de ce que vous pouvez nous fournir. Un site de cinq pages avec vos textes et vos photos part beaucoup plus vite qu’un projet où tout reste à écrire. On vous donne une date après le premier échange, pas avant.',
   },
   {
     q: 'Quels sont les moyens de paiement ?',
-    a: 'Les devis sont établis en dollars américains ou en francs congolais. Le règlement se fait par Mobile Money ou virement, en deux ou trois fois selon la taille du projet.',
+    a: 'En dollars ou en francs congolais, comme vous préférez. Paiement par Mobile Money ou virement, en deux ou trois fois selon la taille du projet.',
   },
   {
     q: 'Travaillez-vous avec des clients hors de Matadi ?',
-    a: 'Oui. Le suivi se fait à distance par WhatsApp, email et appels. Pour la photographie, le déplacement est étudié au cas par cas.',
+    a: 'Oui. On travaille par WhatsApp, par email et au téléphone. Pour la photo, on regarde ensemble si le déplacement est possible — et ce qu’il coûte.',
   },
   {
     q: 'Que se passe-t-il après la mise en ligne ?',
-    a: 'Une période de garantie couvre les corrections de ce qui était prévu. Ensuite, la maintenance est optionnelle : mises à jour, sauvegardes, petites évolutions.',
+    a: 'Les corrections de ce qui était prévu sont couvertes pendant la garantie. Après, la maintenance reste optionnelle : mises à jour, sauvegardes, petites retouches.',
   },
   {
     q: 'Puis-je récupérer mes contenus et mes accès ?',
-    a: 'Toujours. Le nom de domaine, l’hébergement et les comptes sont ouverts à votre nom, et le code source vous est remis à la livraison.',
+    a: 'Toujours. Le domaine, l’hébergement et les comptes sont à votre nom, et vous repartez avec le code.',
   },
   {
     q: 'Faites-vous de la photographie hors événementiel ?',
-    a: 'Oui : portraits, produits, intérieurs et reportages d’activité. La séance est préparée en amont (lieu, lumière, tenues, liste de prises).',
+    a: 'Oui : portraits, produits, intérieurs, reportages. On prépare la séance avant (lieu, lumière, tenues, ce qu’il faut absolument avoir).',
   },
 ];
 
@@ -157,10 +159,11 @@ export default function Home() {
             </div>
 
             <div style={{ ['--i' as string]: 1 }}>
-              <SplitHeadline
+              <SplitText
+                as="h1"
                 text="Les bonnes idées méritent mieux que de rester des idées."
                 accent="idées"
-                step={55}
+                step={0.05}
                 className="mt-5 font-extrabold tracking-[-0.035em] text-[clamp(1.95rem,4.1vw,3.35rem)]"
               />
             </div>
@@ -206,19 +209,21 @@ export default function Home() {
 
           <div className="hero-visual relative">
             <div className="relative">
-              <MediaImage
-                slug="accueil-conseil"
-                alt="Consultante au travail devant son ordinateur dans un bureau lumineux"
-                width={1600}
-                height={1067}
-                sizes="(max-width: 1024px) 100vw, 46vw"
-                priority
-                className="aspect-[4/3] w-full rounded-2xl"
-              />
+              <Parallax speed={34} scale className="overflow-hidden rounded-2xl">
+                <MediaImage
+                  slug="accueil-conseil"
+                  alt="Consultante au travail devant son ordinateur dans un bureau lumineux"
+                  width={1600}
+                  height={1067}
+                  sizes="(max-width: 1024px) 100vw, 46vw"
+                  priority
+                  className="aspect-[4/3] w-full"
+                />
+              </Parallax>
               <div className="float-soft absolute -bottom-5 -left-4 hidden max-w-[16rem] rounded-xl border border-line bg-paper p-4 shadow-lg sm:block">
-                <p className="text-[11px] uppercase tracking-wider text-muted">Le principe</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted">Notre règle</p>
                 <p className="mt-1 text-sm font-medium leading-snug">
-                  Pas de maquette qui ne fonctionne pas. Ce qui est livré tourne.
+                  Ce qu’on vous montre est déjà cliquable. Vous testez, puis on discute.
                 </p>
               </div>
             </div>
@@ -247,11 +252,13 @@ export default function Home() {
                           to={`/services#${c.slug}`}
                           className="card card-hover flex h-full flex-col justify-between p-5"
                         >
-                          <Icon className="size-5 text-brand" aria-hidden />
-                          <div className="mt-8">
+                          <TiltLayer depth={26}>
+                            <Icon className="size-5 text-brand" aria-hidden />
+                          </TiltLayer>
+                          <TiltLayer depth={42} className="mt-8">
                             <h3 className="font-semibold leading-tight">{c.name}</h3>
                             <p className="mt-1.5 text-sm leading-relaxed text-muted">{c.description ?? c.tagline ?? ''}</p>
-                          </div>
+                          </TiltLayer>
                         </Link>
                       </TiltCard>
                     </Reveal>
@@ -370,16 +377,16 @@ export default function Home() {
       {/* ---------------------------------------------------- photographie */}
       <section className="relative overflow-hidden border-b border-line/70 bg-ink text-white">
         <div className="mx-auto grid max-w-[1240px] items-center gap-10 px-5 py-16 lg:grid-cols-2 lg:gap-16 lg:py-24">
-          <Reveal>
+          <Parallax speed={52} scale className="overflow-hidden rounded-2xl">
             <MediaImage
               slug="photographe-en-action"
               alt="Photographe en pleine prise de vue dans une lumière de fin de journée"
               width={1600}
               height={1067}
               sizes="(max-width: 1024px) 100vw, 48vw"
-              className="aspect-[4/3] w-full rounded-2xl"
+              className="aspect-[4/3] w-full"
             />
-          </Reveal>
+          </Parallax>
           <div>
             <Reveal>
               <p className="eyebrow text-white/50">Pôle photographie</p>
@@ -423,26 +430,11 @@ export default function Home() {
       </section>
 
       {/* -------------------------------------------------------- méthode */}
-      <section className="border-b border-line/70">
-        <div className="mx-auto max-w-[1240px] px-5 py-16 lg:py-20">
-          <Reveal>
-            <p className="eyebrow rule-in">Méthode</p>
-            <h2 className="display-2 mt-3 max-w-[22ch]">Quatre étapes, aucune zone d’ombre.</h2>
-          </Reveal>
-
-          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {METHODE.map((m, i) => (
-              <Reveal key={m.step} delay={i * 80}>
-                <div className="relative">
-                  <span className="font-mono text-xs text-brand">{m.step}</span>
-                  <div className="mt-3 h-px w-full bg-line" />
-                  <h3 className="mt-4 font-semibold">{m.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted">{m.body}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
+      <section className="border-b border-line/70 bg-wash/40">
+        <StickyStory
+          title="Quatre étapes, aucune zone d’ombre."
+          steps={METHODE.map((m) => ({ title: m.title, body: m.body }))}
+        />
       </section>
 
       {/* ---------------------------------------------------- engagements */}
@@ -453,20 +445,20 @@ export default function Home() {
               <p className="eyebrow rule-in">Engagements</p>
               <h2 className="display-2 mt-3">Ce que vous pouvez exiger de nous.</h2>
               <p className="lead mt-4 max-w-[40ch]">
-                Ces engagements ne sont pas des slogans : chacun correspond à une pratique vérifiable
-                dans nos livraisons.
+                Rien d’extraordinaire dans cette liste. C’est simplement notre façon de travailler —
+                et vous pouvez nous la rappeler si un jour on l’oublie.
               </p>
             </Reveal>
-            <Reveal delay={100}>
+            <Parallax speed={30} className="mt-8 overflow-hidden rounded-2xl">
               <MediaImage
                 slug="atelier-client"
                 alt="Deux personnes de l’équipe échangeant sur un projet"
                 width={1600}
                 height={1067}
                 sizes="(max-width: 1024px) 100vw, 40vw"
-                className="mt-8 aspect-[5/4] w-full rounded-2xl"
+                className="aspect-[5/4] w-full"
               />
-            </Reveal>
+            </Parallax>
           </div>
 
           <ul className="space-y-4">
@@ -491,8 +483,8 @@ export default function Home() {
             <p className="eyebrow rule-in">Questions fréquentes</p>
             <h2 className="display-2 mt-3">Ce qu’on nous demande souvent.</h2>
             <p className="lead mt-4 max-w-[34ch]">
-              Vous ne trouvez pas votre question ? Écrivez-nous : on répond nous-mêmes, pas un robot,
-              et en général dans la journée.
+              Votre question n’est pas dans la liste ? Posez-la quand même. On la lit et on vous
+              répond — souvent le jour même.
             </p>
             <Link to="/contact" className="btn-ghost mt-6">
               Poser une question

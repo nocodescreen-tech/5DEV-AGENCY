@@ -5,6 +5,12 @@
 import { hashPassword } from '../src/lib/password.ts';
 import { one } from '../src/db/index.ts';
 
+// Garde : jamais en production — outil de vérification locale uniquement.
+if (process.env.NODE_ENV === 'production') {
+  console.error('Script de vérification désactivé en production.');
+  process.exit(2);
+}
+
 const EMAIL = process.env.QA_EMAIL ?? 'qa-chat@5dev.local';
 const PASSWORD = process.env.QA_PASSWORD;
 if (!PASSWORD) {

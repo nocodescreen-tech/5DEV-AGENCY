@@ -11,6 +11,7 @@ import {
   Search,
   Send,
   Trash2,
+  Square,
 } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch, apiPost, ApiRequestError } from '../../lib/api';
 import { Markdown } from '../../components/Markdown';
@@ -98,10 +99,31 @@ export default function AdminAIChat() {
     if (!activeId && first) setActiveId(first.id);
   }, [conversations, activeId]);
 
+  // Le fil suit les fragments seulement si l'utilisateur est déjà en bas :
+  // remonter pour relire ne doit pas être annulé par l'arrivée d'un token.
+  const suivreFlux = useRef(true);
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const onScroll = () => {
+      suivreFlux.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [activeId]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && suivreFlux.current) el.scrollTop = el.scrollHeight;
   }, [current?.messages, liveText]);
+
+  // chronomètre pendant l'attente : 4 s de silence paraissent une panne
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!streaming) return setElapsed(0);
+    const t = window.setInterval(() => setElapsed((v) => v + 0.1), 100);
+    return () => window.clearInterval(t);
+  }, [streaming]);
 
   const createConversation = useCallback(async () => {
     const def = availableModels.find((m) => m.is_default) ?? availableModels[0];
@@ -405,14 +427,24 @@ export default function AdminAIChat() {
                   <ArrowDownToLine className="size-3.5" /> Exporter
                 </a>
               )}
-              <button
-                type="button"
-                onClick={() => void retry()}
-                disabled={!activeId || streaming}
-                className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-brand disabled:opacity-40"
-              >
-                <RefreshCw className="size-3.5" /> Régénérer
-              </button>
+              {streaming ? (
+                <button
+                  type="button"
+                  onClick={() => abortRef.current?.abort()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 text-xs font-medium text-ink hover:border-brand hover:text-brand"
+                >
+                  <Square className="size-3" /> Arrêter
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void retry()}
+                  disabled={!activeId}
+                  className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-brand disabled:opacity-40"
+                >
+                  <RefreshCw className="size-3.5" /> Régénérer
+                </button>
+              )}
             </div>
           </div>
 
@@ -429,12 +461,40 @@ export default function AdminAIChat() {
               />
             )}
 
+            {activeId && messages.length === 0 && !streaming && (
+              <div className="mx-auto max-w-xl py-6 text-center">
+                <p className="eyebrow">Fil vide</p>
+                <h2 className="mt-1 text-lg font-semibold">Posez une question, ou partez d’un exemple</h2>
+                <p className="mt-1 text-xs text-muted">
+                  L’assistant lit la base avant de répondre et propose des actions — jamais exécutées sans votre clic.
+                </p>
+                <div className="mt-4 grid gap-2">
+                  {[
+                    'Quelles demandes sont en attente depuis plus de 48 heures ?',
+                    'Résume l’avancement du projet le plus récent.',
+                    'Rédige une réponse à un client qui demande un devis pour un site vitrine.',
+                  ].map((exemple) => (
+                    <button
+                      key={exemple}
+                      type="button"
+                      onClick={() => setDraft(exemple)}
+                      className="panel px-3 py-2 text-left text-xs text-ink/75 transition hover:border-brand/50 hover:text-ink"
+                    >
+                      {exemple}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {messages.map((m) => (
-              <div key={m.id} className={m.role === 'user' ? 'flex justify-end' : ''}>
+              <div key={m.id} className={m.role === 'user' ? 'flex justify-end' : 'chat-assistant'}>
                 <div
-                  className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${
-                    m.role === 'user' ? 'bg-ink text-white' : 'border border-line bg-wash'
-                  }`}
+                  className={
+                    m.role === 'user'
+                      ? 'max-w-[85%] rounded-2xl rounded-br-md bg-ink px-3.5 py-2.5 text-white'
+                      : 'chat-assistant-body'
+                  }
                 >
                   {m.role === 'assistant' ? (
                     <>
@@ -465,10 +525,15 @@ export default function AdminAIChat() {
               <div className="max-w-[85%]">
                 <div className="rounded-xl border border-line bg-wash px-3.5 py-2.5">
                   {liveText ? (
-                    <Markdown text={liveText} />
+                    <div className="chat-assistant-body">
+                      <Markdown text={liveText} />
+                      <span className="chat-caret" aria-hidden />
+                    </div>
                   ) : (
                     <p className="flex items-center gap-2 text-sm text-muted">
-                      <Loader2 className="size-3.5 animate-spin" /> Le modèle réfléchit…
+                      <Loader2 className="size-3.5 animate-spin" />
+                      {liveMeta.model ? `Envoi au modèle…` : 'Connexion au modèle…'}
+                      <span className="tabular-nums text-[11px] text-muted/80">{elapsed.toFixed(1)} s</span>
                     </p>
                   )}
                   {liveMeta.stubbed && <p className="mt-2 text-[10px] text-brand">repli sans fournisseur IA</p>}

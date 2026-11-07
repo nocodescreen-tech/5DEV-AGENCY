@@ -224,3 +224,36 @@
   padding: 1px 4px;
   font-family: inherit;
 }
+
+
+/* ============================================================================
+   CHAT IA — lecture confortable, état de flux visible
+   ========================================================================== */
+
+.chat-assistant { max-width: 100%; }
+.chat-assistant-body {
+  position: relative;
+  padding-left: 0.9rem;
+  border-left: 2px solid color-mix(in srgb, var(--brand) 32%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+.chat-assistant-body > :first-child { margin-top: 0; }
+.chat-assistant-body > :last-child { margin-bottom: 0; }
+
+/* curseur de frappe pendant le flux */
+.chat-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.18em;
+  border-radius: 1px;
+  background: var(--brand);
+  animation: caret-blink 1s steps(2, start) infinite;
+}
+@keyframes caret-blink { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-caret { animation: none; }
+}

@@ -31,24 +31,36 @@ const client = new pg.Client({ connectionString: url });
 await client.connect();
 
 const hash = hashPassword(NEW_PASSWORD);
-const updated = await client.query(
-  `update users
-      set email = $1, password_hash = $2, is_active = true,
-          totp_enabled = false, totp_secret = null
-    where role = 'admin' or email = $1
-    returning id, email, is_active, totp_enabled`,
-  [NEW_EMAIL, hash],
+
+// On cible UN compte précis : celui qui porte déjà cet email, sinon le compte propriétaire
+// le plus ancien. Jamais un `where role=...` large : cela renommerait plusieurs comptes
+// d'un coup et violerait l'unicité de l'email.
+const target = await client.query(
+  `select id, email, role from users
+    where email = $1 or role in ('owner','admin')
+    order by (email = $1) desc, created_at asc
+    limit 1`,
+  [NEW_EMAIL],
 );
 
-if (updated.rowCount === 0) {
+if (target.rowCount === 0) {
   const inserted = await client.query(
     `insert into users(email, password_hash, full_name, role, is_active, totp_enabled)
-     values($1,$2,'Administrateur 5DEV','admin',true,false)
+     values($1,$2,'Administrateur 5DEV','owner',true,false)
      returning id, email, is_active, totp_enabled`,
     [NEW_EMAIL, hash],
   );
   console.log('compte créé :', JSON.stringify(inserted.rows));
 } else {
+  const id = target.rows[0].id;
+  const updated = await client.query(
+    `update users
+        set email = $1, password_hash = $2, is_active = true,
+            totp_enabled = false, totp_secret = null
+      where id = $3
+      returning id, email, is_active, totp_enabled`,
+    [NEW_EMAIL, hash, id],
+  );
   console.log('compte mis à jour :', JSON.stringify(updated.rows));
 }
 

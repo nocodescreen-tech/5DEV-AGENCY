@@ -203,7 +203,8 @@ export default function AdminLogin() {
 
             {challenge.enroll && challenge.secret && (
               <div className="mt-5 rounded-xl border border-line bg-wash p-4">
-                <p className="text-[11px] uppercase tracking-wider text-muted">Clé à saisir manuellement</p>
+                {challenge.otpauth_url && <EnrollQr value={challenge.otpauth_url} />}
+                <p className="mt-3 text-[11px] uppercase tracking-wider text-muted">Ou saisir la clé à la main</p>
                 <p className="mt-1 break-all font-mono text-sm font-semibold">{challenge.secret}</p>
                 {challenge.otpauth_url && (
                   <a
@@ -276,6 +277,50 @@ export default function AdminLogin() {
         )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * QR d'enrôlement TOTP, généré dans le navigateur à partir de l'URL otpauth.
+ * Aucun service externe : le secret ne quitte jamais le poste.
+ */
+function EnrollQr({ value }: { value: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void import('qrcode')
+      .then((QR) =>
+        QR.toDataURL(value, {
+          errorCorrectionLevel: 'M',
+          margin: 1,
+          width: 220,
+          color: { dark: '#171717', light: '#FFFFFF' },
+        }),
+      )
+      .then((url) => {
+        if (alive) setSrc(url);
+      })
+      .catch(() => setSrc(null));
+    return () => {
+      alive = false;
+    };
+  }, [value]);
+
+  return (
+    <div className="flex flex-col items-center">
+      <p className="text-[11px] uppercase tracking-wider text-muted">Scannez avec votre application</p>
+      <div className="mt-2 grid size-[132px] place-items-center rounded-lg bg-white p-2 shadow-sm">
+        {src ? (
+          <img src={src} alt="QR code d’enrôlement de la double authentification" width={116} height={116} />
+        ) : (
+          <span className="size-4 animate-spin rounded-full border-2 border-line border-t-brand" aria-hidden />
+        )}
+      </div>
+      <p className="mt-2 max-w-[22ch] text-center text-[10px] leading-snug text-muted">
+        Google Authenticator, Authy, Microsoft Authenticator, 1Password…
+      </p>
     </div>
   );
 }

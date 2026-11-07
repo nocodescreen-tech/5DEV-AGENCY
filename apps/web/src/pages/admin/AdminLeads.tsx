@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiDelete, apiGet, apiPatch } from '../../lib/api';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toaster';
-import { Trash2 } from 'lucide-react';
+import { Mail, MessageCircle, Trash2 } from 'lucide-react';
 import type { Lead } from '../../lib/types';
 import { frDateTime, money } from '../../lib/format';
 
@@ -127,6 +127,41 @@ export default function AdminLeads() {
                 <div>
                   <dt className="text-muted">Note interne</dt>
                   <dd>{lead.admin_note ?? '—'}</dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-muted">Répondre</dt>
+                  <dd className="mt-1.5 flex flex-wrap gap-2">
+                    <a
+                      href={`mailto:${lead.contact_email}?subject=${encodeURIComponent(
+                        `Réponse à votre demande 5DEV — réf. ${lead.id.slice(0, 8).toUpperCase()}`,
+                      )}&body=${encodeURIComponent(
+                        `Bonjour ${lead.contact_name},
+
+Nous avons bien reçu votre message (réf. ${lead.id.slice(0, 8).toUpperCase()}).
+
+`,
+                      )}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink/75 transition hover:border-brand hover:text-brand"
+                    >
+                      <Mail className="size-3.5" aria-hidden /> Par email
+                    </a>
+                    {lead.contact_phone ? (
+                      <a
+                        href={`https://wa.me/${lead.contact_phone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(
+                          `Bonjour ${lead.contact_name}, c'est 5DEV. Nous avons reçu votre message (réf. ${lead.id
+                            .slice(0, 8)
+                            .toUpperCase()}).`,
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink/75 transition hover:border-brand hover:text-brand"
+                      >
+                        <MessageCircle className="size-3.5" aria-hidden /> WhatsApp
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-muted">Aucun numéro fourni pour WhatsApp.</span>
+                    )}
+                  </dd>
                 </div>
               </dl>
             )}

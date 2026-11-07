@@ -3,6 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import {
   Bell,
+  Search,
+  CheckCheck,
+  Trash2,
+  X,
   Bot,
   CalendarClock,
   ChevronsLeft,
@@ -22,10 +26,11 @@ import {
   Sparkles,
   Wrench,
 } from 'lucide-react';
-import { apiGet, apiPost } from '../../lib/api';
+import { apiDelete, apiGet, apiPost } from '../../lib/api';
 import ThemeToggle from '../../components/ThemeToggle';
 
 import { PageTransition } from '../../components/motion/PageTransition';
+import '../../admin.css';
 type Me = {
   user: {
     id: string;
@@ -89,6 +94,7 @@ export default function AdminLayout() {
   const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
   const [notifOpen, setNotifOpen] = useState(false);
+  const [navQuery, setNavQuery] = useState('');
 
   useEffect(() => {
     localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
@@ -100,6 +106,26 @@ export default function AdminLayout() {
     retry: 0,
     staleTime: 60_000,
   });
+
+  const { data: counters } = useQuery({
+    queryKey: ['counters'],
+    queryFn: () =>
+      apiGet<{ leads_new: number; bookings_pending: number; projects_active: number; tasks_open: number; tasks_late: number }>(
+        '/api/v1/admin/counters',
+      ),
+    enabled: Boolean(data?.user),
+    refetchInterval: 90_000,
+  });
+
+  /** badge associé à une entrée de navigation */
+  const badgeFor = (to: string): number => {
+    if (!counters) return 0;
+    if (to === '/admin/demandes') return counters.leads_new;
+    if (to === '/admin/reservations') return counters.bookings_pending;
+    if (to === '/admin/projets') return counters.projects_active;
+    if (to === '/admin/taches') return counters.tasks_open;
+    return 0;
+  };
 
   const { data: notifs } = useQuery({
     queryKey: ['notifications'],
@@ -136,6 +162,16 @@ export default function AdminLayout() {
 
   async function markRead() {
     await apiPost('/api/v1/admin/notifications/read').catch(() => undefined);
+    void qc.invalidateQueries({ queryKey: ['notifications'] });
+  }
+
+  async function deleteNotif(id: string) {
+    await apiDelete(`/api/v1/admin/notifications/${id}`).catch(() => undefined);
+    void qc.invalidateQueries({ queryKey: ['notifications'] });
+  }
+
+  async function clearRead() {
+    await apiPost('/api/v1/admin/notifications/clear').catch(() => undefined);
     void qc.invalidateQueries({ queryKey: ['notifications'] });
   }
 
@@ -185,14 +221,40 @@ export default function AdminLayout() {
                   {(notifs?.notifications ?? []).length === 0 ? (
                     <p className="p-3 text-xs text-muted">Aucune notification.</p>
                   ) : (
-                    <ul className="max-h-72 overflow-auto">
-                      {(notifs?.notifications ?? []).map((n) => (
-                        <li key={n.id} className="rounded-lg p-3 hover:bg-wash">
-                          <p className="text-sm font-medium">{n.title}</p>
-                          {n.body && <p className="mt-1 text-xs text-muted">{n.body}</p>}
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <ul className="max-h-72 overflow-auto">
+                        {(notifs?.notifications ?? []).map((n) => (
+                          <li key={n.id} className="group/n relative rounded-lg p-3 pr-8 hover:bg-wash">
+                            <p className="text-sm font-medium">{n.title}</p>
+                            {n.body && <p className="mt-1 text-xs text-muted">{n.body}</p>}
+                            <button
+                              type="button"
+                              onClick={() => void deleteNotif(n.id)}
+                              className="absolute right-2 top-2 grid size-5 place-items-center rounded text-muted opacity-0 transition group-hover/n:opacity-100 hover:text-brand"
+                              aria-label={`Supprimer la notification « ${n.title} »`}
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="mt-1 flex items-center justify-between border-t border-line pt-2">
+                        <button
+                          type="button"
+                          onClick={() => void markRead()}
+                          className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-brand"
+                        >
+                          <CheckCheck className="size-3.5" /> Tout lire
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void clearRead()}
+                          className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-brand"
+                        >
+                          <Trash2 className="size-3.5" /> Vider les lues
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -232,16 +294,29 @@ export default function AdminLayout() {
             collapsed ? 'w-[68px]' : 'w-[236px]'
           } transition-[width] duration-200`}
         >
-          <nav aria-label="Navigation administration" className="sticky top-16 p-3">
-            {GROUPS.map((group) => (
+          <nav aria-label="Navigation administration" className="admin-nav sticky top-16 p-3">
+            {!collapsed && (
+              <div className="nav-search">
+                <Search className="size-3.5 text-muted" aria-hidden />
+                <input
+                  value={navQuery}
+                  onChange={(e) => setNavQuery(e.target.value)}
+                  placeholder="Filtrer les écrans"
+                  aria-label="Filtrer les écrans de la console"
+                  data-nav-search
+                />
+                <kbd>/</kbd>
+              </div>
+            )}
+            {GROUPS.map((group) => {
+              if (navQuery.trim() && !group.items.some((i) => i.label.toLowerCase().includes(navQuery.trim().toLowerCase()))) return null;
+              return (
               <div key={group.title} className="mb-4">
                 {!collapsed && (
-                  <p className="mb-1.5 px-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
-                    {group.title}
-                  </p>
+                  <p className="group-label">{group.title}</p>
                 )}
                 <ul className="space-y-0.5">
-                  {group.items.map((item) => {
+                  {group.items.filter((i) => i.label.toLowerCase().includes(navQuery.trim().toLowerCase())).map((item) => {
                     const Icon = item.icon;
                     return (
                       <li key={item.to}>
@@ -249,25 +324,31 @@ export default function AdminLayout() {
                           to={item.to}
                           end={item.end}
                           title={collapsed ? item.label : undefined}
-                          className={({ isActive }) =>
-                            `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition ${
-                              isActive ? 'bg-brand/10 font-medium text-brand' : 'text-ink/70 hover:bg-wash'
-                            }`
-                          }
+                          className="flex items-center gap-2.5"
                         >
                           <Icon className="size-4 shrink-0" aria-hidden />
                           {!collapsed && <span className="truncate">{item.label}</span>}
+                          {badgeFor(item.to) > 0 && (
+                            <span
+                              className={`ml-auto rounded-full bg-brand px-1.5 text-[10px] font-bold leading-4 text-white ${
+                                collapsed ? 'absolute right-0.5 top-0.5' : ''
+                              }`}
+                              aria-label={`${badgeFor(item.to)} en attente`}
+                            >
+                              {badgeFor(item.to) > 99 ? '99+' : badgeFor(item.to)}
+                            </span>
+                          )}
                         </NavLink>
                       </li>
                     );
                   })}
                 </ul>
               </div>
-            ))}
+            ); })}
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:py-8">
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-7"><div className="mx-auto w-full max-w-[1480px]">
           {/* navigation mobile */}
           <nav className="mb-5 flex gap-1 overflow-x-auto lg:hidden" aria-label="Navigation mobile">
             {GROUPS.flatMap((g) => g.items).map((item) => (
@@ -289,6 +370,7 @@ export default function AdminLayout() {
           <PageTransition>
             <Outlet />
           </PageTransition>
+          </div>
         </main>
       </div>
     </div>

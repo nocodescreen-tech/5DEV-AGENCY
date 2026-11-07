@@ -84,3 +84,23 @@ dashboardRouter.get('/admin/dashboard', requireAdmin, async (_req, res, next) =>
     next(err);
   }
 });
+
+/**
+ * Compteurs légers pour les badges de navigation (4 agrégats, indexés).
+ * Séparé du tableau de bord complet pour ne pas recalculer les séries à chaque page.
+ */
+dashboardRouter.get('/admin/counters', requireAdmin, async (_req, res, next) => {
+  try {
+    const row = await one<Record<string, number>>(
+      `select
+         (select count(*) from leads where status='new')::int as leads_new,
+         (select count(*) from bookings where status='pending')::int as bookings_pending,
+         (select count(*) from projects_pm where deleted_at is null and status in ('planning','active'))::int as projects_active,
+         (select count(*) from tasks where deleted_at is null and status <> 'done')::int as tasks_open,
+         (select count(*) from tasks where deleted_at is null and status <> 'done' and due_date < current_date)::int as tasks_late`,
+    );
+    res.json({ ok: true, data: row });
+  } catch (err) {
+    next(err);
+  }
+});

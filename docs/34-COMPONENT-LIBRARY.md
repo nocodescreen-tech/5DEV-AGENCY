@@ -5,7 +5,15 @@ dans chaque page, et garantir que tout se comporte pareil partout (durées, cour
 accessibilité, `prefers-reduced-motion`).
 
 Tous les composants vivent dans `apps/web/src/components/`. Les jetons de mouvement sont
-dans `design.css` (`--dur-*`, `--ease-*`).
+dans `design.css` (`--dur-*`, `--ease-*`) **et** dans `lib/motion-tokens.ts` (durées,
+courbes, ressorts, `tilt`, `perspective`) pour la couche `motion/react`.
+
+> **V2 (2026-11-07)** — les composants de la couche Motion vivent dans
+> `components/motion/` : `PageTransition`, `SplitText`, `TiltCard3D` + `TiltLayer`,
+> `Magnetic` / `MagneticButton`, `ScrollProgress`, `Parallax`, `StickyStory`,
+> `RevealOnScroll` / `StaggerGroup` / `StaggerItem`, `AnimatedCounter`.
+> Les valeurs mesurées et la carte d'application sont dans `32-MOTION-ENGINEERING.md` §9.
+> `ui.tsx` (`TiltCard`) délègue à `TiltCard3D` : ne pas réécrire un tilt local.
 
 ---
 

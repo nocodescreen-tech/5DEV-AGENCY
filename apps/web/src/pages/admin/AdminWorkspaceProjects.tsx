@@ -6,6 +6,7 @@ import { DeleteButton } from '../../components/DeleteButton';
 import { apiGet, apiPost, ApiRequestError } from '../../lib/api';
 import { frDate } from '../../lib/format';
 
+import { TiltCard3D } from '../../components/motion/TiltCard3D';
 type Project = {
   id: string;
   reference: string;
@@ -247,7 +248,8 @@ export default function AdminWorkspaceProjects() {
         {(projects ?? []).map((p) => (
           <li key={p.id}>
             <div className="flex items-stretch gap-2">
-            <Link to={`/admin/projets/${p.id}`} className="card lift block flex-1 p-5">
+            <TiltCard3D className="flex-1">
+              <Link to={`/admin/projets/${p.id}`} className="card lift block h-full p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -284,7 +286,8 @@ export default function AdminWorkspaceProjects() {
                   </div>
                 </div>
               </div>
-            </Link>
+              </Link>
+            </TiltCard3D>
               <DeleteButton
                 label={`le projet ${p.reference}`}
                 detail="les tâches, jalons et documents liés seront supprimés"

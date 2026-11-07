@@ -50,7 +50,7 @@ export function StickyStory({
   const active = useActiveStep(scrollYProgress, steps.length);
 
   return (
-    <div ref={ref} className={`sticky-story ${className}`} style={{ height: `${steps.length * 90}vh` }}>
+    <div ref={ref} className={`sticky-story ${className}`} style={{ height: `${steps.length * 62}vh` }}>
       <div className="sticky-story-inner">
         <div className="sticky-story-head">
           <p className="eyebrow">La méthode</p>

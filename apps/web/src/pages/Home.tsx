@@ -384,6 +384,7 @@ export default function Home() {
               width={1600}
               height={1067}
               sizes="(max-width: 1024px) 100vw, 48vw"
+              priority
               className="aspect-[4/3] w-full"
             />
           </Parallax>
@@ -456,6 +457,7 @@ export default function Home() {
                 width={1600}
                 height={1067}
                 sizes="(max-width: 1024px) 100vw, 40vw"
+                priority
                 className="aspect-[5/4] w-full"
               />
             </Parallax>

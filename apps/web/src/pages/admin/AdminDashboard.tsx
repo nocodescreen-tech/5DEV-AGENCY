@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   ArrowUpRight,
-  ArrowDownRight,
   Banknote,
   CalendarClock,
   Inbox,
@@ -15,7 +14,6 @@ import { apiGet } from '../../lib/api';
 import { frDate, frDateTime } from '../../lib/format';
 import { Skeleton } from '../../components/ui';
 
-import { TiltCard3D } from '../../components/motion/TiltCard3D';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { KpiCard } from '../../components/admin/KpiCard';
 type Dash = {
@@ -88,39 +86,6 @@ export default function AdminDashboard() {
   const delta = k.leads_prev_week > 0 ? Math.round(((k.leads_week - k.leads_prev_week) / k.leads_prev_week) * 100) : null;
   const maxSeries = Math.max(1, ...data.series.map((s) => Math.max(s.demandes, s.reservations)));
   const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-
-  const cards = [
-    {
-      label: 'Demandes à traiter',
-      value: k.leads_new,
-      hint: `${k.leads_total} au total`,
-      icon: Inbox,
-      to: '/admin/demandes',
-      tone: 'brand' as const,
-    },
-    {
-      label: 'Projets en cours',
-      value: k.projects_active,
-      hint: `${k.tasks_open} tâche(s) ouverte(s)`,
-      icon: TrendingUp,
-      to: '/admin/projets',
-    },
-    {
-      label: 'Échéances proches',
-      value: data.tasksSoon.length,
-      hint: k.tasks_late > 0 ? `${k.tasks_late} en retard` : 'aucun retard',
-      icon: CalendarClock,
-      to: '/admin/taches',
-      alert: k.tasks_late > 0,
-    },
-    {
-      label: 'Temps cette semaine',
-      value: hours(k.time_week),
-      hint: `${k.ai_calls_24h} appel(s) IA sur 24 h`,
-      icon: Timer,
-      to: '/admin/temps',
-    },
-  ];
 
   return (
     <div>

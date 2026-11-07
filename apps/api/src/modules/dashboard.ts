@@ -21,8 +21,11 @@ dashboardRouter.get('/admin/dashboard', requireAdmin, async (_req, res, next) =>
            (select count(*) from bookings where status='pending')::int as bookings_pending,
            (select count(*) from bookings where shoot_date >= current_date)::int as bookings_upcoming,
            (select count(*) from projects_pm where deleted_at is null and status in ('planning','active'))::int as projects_active,
-           (select count(*) from tasks where deleted_at is null and status <> 'done')::int as tasks_open,
-           (select count(*) from tasks where deleted_at is null and status <> 'done' and due_date < current_date)::int as tasks_late,
+           (select count(*) from tasks t join projects_pm p on p.id = t.project_id
+              where t.deleted_at is null and p.deleted_at is null and t.status <> 'done')::int as tasks_open,
+           (select count(*) from tasks t join projects_pm p on p.id = t.project_id
+              where t.deleted_at is null and p.deleted_at is null
+                and t.status <> 'done' and t.due_date < current_date)::int as tasks_late,
            (select coalesce(sum(minutes),0) from time_entries
               where ended_at is not null and started_at > date_trunc('week', now()))::int as time_week,
            (select count(*) from ai_usage where created_at > now() - interval '24 hours')::int as ai_calls_24h,
@@ -56,7 +59,7 @@ dashboardRouter.get('/admin/dashboard', requireAdmin, async (_req, res, next) =>
       all(
         `select t.id, t.title, t.priority, t.due_date, p.name as project_name, p.id as project_id
            from tasks t join projects_pm p on p.id = t.project_id
-          where t.deleted_at is null and t.status <> 'done'
+          where t.deleted_at is null and p.deleted_at is null and t.status <> 'done'
           order by t.due_date nulls last, (t.priority='urgent') desc
           limit 6`,
       ),
@@ -96,8 +99,11 @@ dashboardRouter.get('/admin/counters', requireAdmin, async (_req, res, next) => 
          (select count(*) from leads where status='new')::int as leads_new,
          (select count(*) from bookings where status='pending')::int as bookings_pending,
          (select count(*) from projects_pm where deleted_at is null and status in ('planning','active'))::int as projects_active,
-         (select count(*) from tasks where deleted_at is null and status <> 'done')::int as tasks_open,
-         (select count(*) from tasks where deleted_at is null and status <> 'done' and due_date < current_date)::int as tasks_late`,
+         (select count(*) from tasks t join projects_pm p on p.id = t.project_id
+            where t.deleted_at is null and p.deleted_at is null and t.status <> 'done')::int as tasks_open,
+         (select count(*) from tasks t join projects_pm p on p.id = t.project_id
+            where t.deleted_at is null and p.deleted_at is null
+              and t.status <> 'done' and t.due_date < current_date)::int as tasks_late`,
     );
     res.json({ ok: true, data: row });
   } catch (err) {

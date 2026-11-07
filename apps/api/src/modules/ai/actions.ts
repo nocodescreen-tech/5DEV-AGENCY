@@ -51,6 +51,27 @@ export const ACTION_SPECS = {
     }),
     describe: (p: Record<string, unknown>) => `Ajouter la note « ${p.title} » au projet`,
   },
+  project_create: {
+    label: 'Créer un projet',
+    schema: z.object({
+      name: z.string().min(2).max(160),
+      description: z.string().max(4000).default(''),
+      priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
+      due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      budget_amount: z.number().min(0).max(100_000_000).nullable().optional(),
+      budget_currency: z.enum(['USD', 'CDF']).default('USD'),
+    }),
+    describe: (p: Record<string, unknown>) => `Créer le projet « ${p.name} »`,
+  },
+  milestone_create: {
+    label: 'Créer un jalon',
+    schema: z.object({
+      project_id: z.string().uuid(),
+      title: z.string().min(2).max(160),
+      due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }),
+    describe: (p: Record<string, unknown>) => `Créer le jalon « ${p.title} »`,
+  },
   email_send: {
     label: 'Envoyer un email',
     schema: z.object({
@@ -383,6 +404,55 @@ export async function executeAction(
       return { summary: `Note « ${p.title} » ajoutée.`, link: `/admin/projets/${p.project_id}` };
     }
 
+    case 'project_create': {
+      const p = params as {
+        name: string;
+        description: string;
+        priority: string;
+        due_date?: string | null;
+        budget_amount?: number | null;
+        budget_currency: string;
+      };
+      // référence PRJ-AAAA-NNN : on repart du plus grand numéro de l'année (jamais un comptage,
+      // qui collide après une suppression)
+      const year = new Date().getFullYear();
+      const last = await one<{ max: string | null }>(
+        `select max(reference) as max from projects_pm where reference like 'PRJ-' || $1 || '-%'`,
+        [String(year)],
+      );
+      const nextNum = Number(String(last?.max ?? '').split('-')[2] ?? 0) + 1;
+      const reference = `PRJ-${year}-${String(nextNum).padStart(3, '0')}`;
+
+      const row = await one<{ id: string; reference: string }>(
+        `insert into projects_pm(reference, name, description, status, priority, due_date,
+             budget_amount, budget_currency, owner_id)
+         values($1,$2,$3,'planning',$4,$5,$6,$7,$8)
+         returning id, reference`,
+        [
+          reference,
+          p.name,
+          p.description,
+          p.priority,
+          p.due_date ?? null,
+          p.budget_amount ?? null,
+          p.budget_currency,
+          actorId,
+        ],
+      );
+      if (!row) throw new AppError(500, 'INTERNAL', 'Création du projet impossible.');
+      await auditAction('project_create', { project_id: row.id, name: p.name }, actorId, null);
+      return { summary: `Projet ${row.reference} créé : ${p.name}`, link: '/admin/projets' };
+    }
+    case 'milestone_create': {
+      const p = params as { project_id: string; title: string; due_date: string };
+      const row = await one<{ id: string }>(
+        `insert into milestones(project_id, name, due_date) values($1,$2,$3) returning id`,
+        [p.project_id, p.title, p.due_date],
+      );
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Projet introuvable.');
+      await auditAction('milestone_create', { project_id: p.project_id, title: p.title }, actorId, null);
+      return { summary: `Jalon « ${p.title} » créé`, link: `/admin/projets/${p.project_id}` };
+    }
     case 'email_send': {
       const p = params as { to: string; subject: string; body: string };
       const res = await sendEmail({

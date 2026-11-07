@@ -37,10 +37,12 @@ describe('extractAction', () => {
 });
 
 describe('liste blanche', () => {
-  it('expose les six actions attendues', () => {
+  it('expose les huit actions attendues', () => {
     expect(Object.keys(ACTION_SPECS).sort()).toEqual([
       'email_send',
+      'milestone_create',
       'note_add',
+      'project_create',
       'project_set_status',
       'task_create',
       'task_delete',

@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { TiltCard3D } from '../motion/TiltCard3D';
 
 /** Micro-courbe : dernière série réelle, aucune donnée inventée. */
 function Spark({ values }: { values: number[] }) {
@@ -53,6 +54,7 @@ export function KpiCard({
   delay?: number;
 }) {
   return (
+    <TiltCard3D max={6} lift={4} spotlight={false} className="h-full">
     <Link
       to={to}
       className="kpi group"
@@ -80,5 +82,6 @@ export function KpiCard({
         {series && <Spark values={series} />}
       </div>
     </Link>
+    </TiltCard3D>
   );
 }

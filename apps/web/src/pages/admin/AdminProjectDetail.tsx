@@ -237,9 +237,14 @@ export default function AdminProjectDetail() {
   if (isPending) return <p className="text-sm text-muted">Chargement du projet…</p>;
   if (isError || !data) {
     return (
-      <div>
-        <p className="text-sm">Projet introuvable.</p>
-        <Link to="/admin/projets" className="btn-ghost mt-4">
+      <div className="panel max-w-xl p-6">
+        <p className="eyebrow">Introuvable</p>
+        <h1 className="mt-1 text-lg font-semibold">Ce projet n’existe plus</h1>
+        <p className="mt-2 text-sm text-muted">
+          Il a peut-être été archivé ou supprimé depuis l’ouverture de cette page. La liste des
+          projets actifs reste disponible.
+        </p>
+        <Link to="/admin/projets" className="btn-ghost mt-5">
           Retour aux projets
         </Link>
       </div>

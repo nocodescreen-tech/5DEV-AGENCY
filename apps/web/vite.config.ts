@@ -14,6 +14,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // '::' écoute en IPv4 ET IPv6 : sinon le navigateur qui résout localhost en
+    // 127.0.0.1 tombe sur ERR_CONNECTION_REFUSED alors que Vite tourne.
+    host: '::',
+    strictPort: true,
     proxy: {
       // l'API tourne sur 4000 en développement
       '/api': { target: 'http://127.0.0.1:4000', changeOrigin: true },
@@ -23,6 +27,7 @@ export default defineConfig({
   // `vite preview` sert le build : on garde le même proxy pour que les mesures
   // de performance portent sur l'application réellement alimentée.
   preview: {
+    host: '::',
     port: 4173,
     proxy: {
       '/api': { target: 'http://127.0.0.1:4000', changeOrigin: true },

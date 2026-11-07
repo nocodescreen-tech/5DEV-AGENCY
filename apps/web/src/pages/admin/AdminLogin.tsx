@@ -117,7 +117,16 @@ export default function AdminLogin() {
         </p>
       </div>
 
-      <div className="flex items-center justify-center p-6 sm:p-12">
+      <div className="flex flex-col">
+        {/* logo + bande sombre sur mobile : l'identité reste visible sans le panneau desktop */}
+        <header className="flex items-center justify-between border-b border-white/10 bg-ink px-5 py-4 text-white lg:hidden">
+          <Link to="/" className="text-lg font-black">
+            <span className="text-brand">5</span>DEV
+          </Link>
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/50">Console</span>
+        </header>
+
+        <div className="flex flex-1 items-center justify-center p-6 sm:p-12">
         {!challenge ? (
           <form onSubmit={submitPassword} className="anim-rise w-full max-w-sm">
             <h2 className="text-2xl font-black">Connexion</h2>
@@ -265,6 +274,7 @@ export default function AdminLogin() {
             </button>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

@@ -1,18 +1,28 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { all, one } from '../db/index.js';
-import { AppError } from '../middlewares/errors.js';
-import { requireAdmin } from '../middlewares/auth.js';
-import { runAutomations } from './automation.js';
+import { requireAdmin, validate } from '../middlewares/auth.js';
+import { emailStats } from '../lib/worker.js';
 
 export const prefsRouter: Router = Router();
 
-/* ------------------------------------------------------- préférences */
+const prefsSchema = z.object({
+  theme: z.enum(['light', 'dark', 'system']).optional(),
+  accent: z.enum(['orange', 'amber', 'cuivre']).optional(),
+  density: z.enum(['comfortable', 'compact']).optional(),
+  sidebar_collapsed: z.boolean().optional(),
+  widgets: z.array(z.string().max(40)).max(20).optional(),
+  email_notifications: z.boolean().optional(),
+  push_notifications: z.boolean().optional(),
+  weekly_digest: z.boolean().optional(),
+});
 
+/** Préférences d'affichage persistées par utilisateur (thème, densité, widget). */
 prefsRouter.get('/admin/prefs', requireAdmin, async (req, res, next) => {
   try {
     const row = await one(
-      `select theme, density, accent, email_notifications, push_notifications, weekly_digest
+      `select theme, accent, density, sidebar_collapsed, widgets,
+              email_notifications, push_notifications, weekly_digest
          from user_prefs where user_id=$1`,
       [req.user?.id ?? null],
     );
@@ -20,8 +30,10 @@ prefsRouter.get('/admin/prefs', requireAdmin, async (req, res, next) => {
       ok: true,
       data: row ?? {
         theme: 'system',
-        density: 'comfortable',
         accent: 'orange',
+        density: 'comfortable',
+        sidebar_collapsed: false,
+        widgets: [],
         email_notifications: true,
         push_notifications: false,
         weekly_digest: true,
@@ -32,40 +44,62 @@ prefsRouter.get('/admin/prefs', requireAdmin, async (req, res, next) => {
   }
 });
 
-prefsRouter.patch(
-  '/admin/prefs',
-  requireAdmin,
-  async (req, res, next) => {
-    try {
-      const body = req.body as Record<string, unknown>;
-      const row = await one(
-        `insert into user_prefs(user_id, theme, density, accent, email_notifications, push_notifications, weekly_digest)
-         values($1,$2,$3,$4,$5,$6,$7)
-         on conflict (user_id) do update set
-           theme = coalesce(excluded.theme, user_prefs.theme),
-           density = coalesce(excluded.density, user_prefs.density),
-           accent = coalesce(excluded.accent, user_prefs.accent),
-           email_notifications = coalesce(excluded.email_notifications, user_prefs.email_notifications),
-           push_notifications = coalesce(excluded.push_notifications, user_prefs.push_notifications),
-           weekly_digest = coalesce(excluded.weekly_digest, user_prefs.weekly_digest),
-           updated_at = now()
-         returning *`,
-        [
-          req.user?.id ?? null,
-          (body.theme as string) ?? null,
-          (body.density as string) ?? null,
-          (body.accent as string) ?? null,
-          typeof body.email_notifications === 'boolean' ? body.email_notifications : null,
-          typeof body.push_notifications === 'boolean' ? body.push_notifications : null,
-          typeof body.weekly_digest === 'boolean' ? body.weekly_digest : null,
-        ],
-      );
-      res.json({ ok: true, data: row });
-    } catch (err) {
-      next(err);
-    }
-  },
-);
+prefsRouter.put('/admin/prefs', requireAdmin, validate(prefsSchema), async (req, res, next) => {
+  try {
+    const p = req.body as z.infer<typeof prefsSchema>;
+    const row = await one(
+      `insert into user_prefs(user_id, theme, accent, density, sidebar_collapsed, widgets,
+             email_notifications, push_notifications, weekly_digest)
+       values($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       on conflict (user_id) do update set
+         theme = coalesce($2, user_prefs.theme),
+         accent = coalesce($3, user_prefs.accent),
+         density = coalesce($4, user_prefs.density),
+         sidebar_collapsed = coalesce($5, user_prefs.sidebar_collapsed),
+         widgets = coalesce($6, user_prefs.widgets),
+         email_notifications = coalesce($7, user_prefs.email_notifications),
+         push_notifications = coalesce($8, user_prefs.push_notifications),
+         weekly_digest = coalesce($9, user_prefs.weekly_digest),
+         updated_at = now()
+       returning theme, accent, density, sidebar_collapsed, widgets,
+                 email_notifications, push_notifications, weekly_digest`,
+      [
+        req.user?.id ?? null,
+        p.theme ?? null,
+        p.accent ?? null,
+        p.density ?? null,
+        p.sidebar_collapsed ?? null,
+        p.widgets ?? null,
+        p.email_notifications ?? null,
+        p.push_notifications ?? null,
+        p.weekly_digest ?? null,
+      ],
+    );
+    res.json({ ok: true, data: row });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** État consolidé des intégrations, affiché dans le Control Center. */
+prefsRouter.get('/admin/integrations', requireAdmin, async (_req, res, next) => {
+  try {
+    const outbox = await emailStats();
+    const hasNvidia = Boolean(process.env.NVIDIA_API_KEY);
+    const hasBrevo = Boolean(process.env.BREVO_API_KEY);
+    res.json({
+      ok: true,
+      data: [
+        { id: 'nvidia-nim', label: 'NVIDIA NIM (IA)', ready: hasNvidia, hint: hasNvidia ? 'clé détectée' : 'NVIDIA_API_KEY absente' },
+        { id: 'brevo', label: 'Brevo (emails)', ready: hasBrevo, hint: hasBrevo ? 'clé détectée' : 'BREVO_API_KEY absente' },
+        { id: 'postgres', label: 'PostgreSQL', ready: true, hint: 'connectée' },
+        { id: 'worker', label: 'File de tâches', ready: true, hint: `${outbox.jobs} tâche(s) en attente` },
+      ],
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /* ----------------------------------------------------- notifications */
 
@@ -101,13 +135,17 @@ prefsRouter.post('/admin/notifications/read', requireAdmin, async (req, res, nex
 prefsRouter.delete('/admin/notifications/:id', requireAdmin, async (req, res, next) => {
   try {
     if (!z.string().uuid().safeParse(req.params.id).success) {
-      throw new AppError(404, 'NOT_FOUND', 'Notification introuvable.');
+      res.status(404).json({ ok: false, error: { code: 'NOT_FOUND', message: 'Notification introuvable.' } });
+      return;
     }
     const row = await one(
       `delete from notifications where id=$1 and (user_id=$2 or user_id is null) returning id`,
       [String(req.params.id), req.user?.id ?? null],
     );
-    if (!row) throw new AppError(404, 'NOT_FOUND', 'Notification introuvable.');
+    if (!row) {
+      res.status(404).json({ ok: false, error: { code: 'NOT_FOUND', message: 'Notification introuvable.' } });
+      return;
+    }
     res.json({ ok: true, data: { deleted: true } });
   } catch (err) {
     next(err);
@@ -128,5 +166,3 @@ prefsRouter.post('/admin/notifications/clear', requireAdmin, async (req, res, ne
     next(err);
   }
 });
-
-export { runAutomations };

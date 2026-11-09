@@ -61,8 +61,46 @@ export const ACTION_SPECS = {
       due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
       budget_amount: z.number().min(0).max(100_000_000).nullable().optional(),
       budget_currency: z.enum(['USD', 'CDF']).default('USD'),
+      // modèle d'étapes à appliquer ('site vitrine', 'e-commerce', 'interne'…) : les étapes
+      // viennent de project_templates, jamais codées en dur.
+      template: z.string().max(80).optional(),
+      // lot initial de tâches : un projet créé par l'assistant doit être utilisable tout de suite,
+      // pas une coquille vide qu'il faut remplir à la main.
+      tasks: z
+        .array(
+          z.object({
+            title: z.string().min(2).max(200),
+            priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
+            due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+            stage: z.string().max(80).optional(),
+          }),
+        )
+        .max(24)
+        .default([]),
+      milestones: z
+        .array(
+          z.object({
+            title: z.string().min(2).max(160),
+            due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          }),
+        )
+        .max(12)
+        .default([]),
+      // nom du client : sans lui la fiche affiche « projet interne »
+      client_name: z.string().max(160).optional(),
+      // brief rédigé : posé en note de projet pour que l'onglet Notes ne soit pas vide
+      note: z.string().max(8000).optional(),
     }),
-    describe: (p: Record<string, unknown>) => `Créer le projet « ${p.name} »`,
+    describe: (p: Record<string, unknown>) => {
+      const nbTasks = Array.isArray(p.tasks) ? p.tasks.length : 0;
+      const nbJalons = Array.isArray(p.milestones) ? p.milestones.length : 0;
+      const extra = [
+        p.template ? `modèle « ${String(p.template)} »` : '',
+        nbTasks ? `${nbTasks} tâche${nbTasks > 1 ? 's' : ''}` : '',
+        nbJalons ? `${nbJalons} jalon${nbJalons > 1 ? 's' : ''}` : '',
+      ].filter(Boolean);
+      return `Créer le projet « ${p.name} »${extra.length ? ` avec ${extra.join(', ')}` : ''}`;
+    },
   },
   milestone_create: {
     label: 'Créer un jalon',
@@ -249,6 +287,20 @@ export function readToolsForPrompt(): string {
     .join('\n');
 }
 
+/**
+ * Catalogue des actions que le modèle peut PROPOSER (jamais exécuter seul).
+ * Sans cette liste dans le prompt, le modèle répond « je n'ai pas d'outil pour créer
+ * un projet » alors que l'action existe — c'est le bug corrigé ici.
+ */
+export function actionsForPrompt(): string {
+  return Object.entries(ACTION_SPECS)
+    .map(([name, spec]) => {
+      const shape = Object.keys((spec.schema as unknown as { shape?: Record<string, unknown> }).shape ?? {});
+      return `- ${name}${shape.length ? ` (${shape.join(', ')})` : ' (aucun paramètre)'} : ${spec.label}`;
+    })
+    .join('\n');
+}
+
 export type ActionName = keyof typeof ACTION_SPECS;
 
 export function isActionName(v: string): v is ActionName {
@@ -301,16 +353,67 @@ export function extractAction(text: string): { name: string; params: Record<stri
 }
 
 /**
+ * Réparation d'un bloc d'action COUPÉ par la limite de tokens. Le modèle produit
+ * parfois un JSON correct mais tronqué en plein milieu : la version stricte le rejette
+ * et l'utilisateur voit « je n'ai pas d'outil » alors que l'action était bien proposée.
+ * On referme les accolades/crochets manquants, puis on raccourcit au dernier élément
+ * complet jusqu'à obtenir un JSON valide.
+ */
+export function extractActionLoose(text: string): { name: string; params: Record<string, unknown> } | null {
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+  let body = text.slice(start).replace(/```[\s\S]*$/, '');
+  if (!body.includes('"action"')) return null;
+
+  const scan = (s: string) => {
+    const stack: string[] = [];
+    let inString = false;
+    let escaped = false;
+    let lastSeparator = -1;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (escaped) { escaped = false; continue; }
+      if (c === String.fromCharCode(92)) { escaped = true; continue; }
+      if (c === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (c === '{') stack.push('}');
+      else if (c === '[') stack.push(']');
+      else if ((c === '}' || c === ']') && stack.length) stack.pop();
+      if (c === ',' || c === '}' || c === ']') lastSeparator = i;
+    }
+    return { closers: stack.reverse().join(''), inString, lastSeparator };
+  };
+
+  for (let attempt = 0; attempt < 60 && body.length > 0; attempt++) {
+    const { closers, inString, lastSeparator } = scan(body);
+    const candidate = body + (inString ? '"' : '') + closers;
+    try {
+      const parsed = JSON.parse(candidate) as { action?: string; params?: Record<string, unknown> };
+      if (parsed.action && isActionName(parsed.action)) {
+        return { name: parsed.action, params: parsed.params ?? {} };
+      }
+      return null;
+    } catch {
+      /* on raccourcit au dernier séparateur hors chaîne */
+    }
+    if (lastSeparator <= 0) return null;
+    body = body.slice(0, lastSeparator);
+  }
+  return null;
+}
+
+/**
  * Normalise les valeurs que le modèle écrit parfois en français
  * (priorité « haute », statut « terminé »…). Sans cela, une proposition
  * parfaitement compréhensible était rejetée par la validation.
  */
 const PRIORITY_MAP: Record<string, string> = {
   basse: 'low', faible: 'low', low: 'low',
-  normale: 'normal', moyen: 'normal', normal: 'normal',
-  haute: 'high', élevée: 'high', high: 'high',
+  normale: 'normal', moyenne: 'normal', moyen: 'normal', normal: 'normal',
+  haute: 'high', élevée: 'high', elevee: 'high', high: 'high',
   urgente: 'urgent', urgent: 'urgent', critique: 'urgent',
 };
+const PRIORITY_VALUES = ['low', 'normal', 'high', 'urgent'];
 const STATUS_MAP: Record<string, string> = {
   'à faire': 'todo', todo: 'todo', 'a faire': 'todo',
   'en cours': 'doing', en_cours: 'doing', doing: 'doing',
@@ -334,6 +437,9 @@ function normalize(name: string, params: Record<string, unknown>): Record<string
   if ('priority' in out) {
     const mapped = PRIORITY_MAP[norm(out.priority)];
     if (mapped) out.priority = mapped;
+    // synonyme inconnu (« moyenne », « très haute »…) : on ne rejette pas toute l'action,
+    // on retombe sur la priorité par défaut du schéma.
+    if (!PRIORITY_VALUES.includes(String(out.priority))) out.priority = 'normal';
   }
   if ('status' in out) {
     const mapped = STATUS_MAP[norm(out.status)];
@@ -348,6 +454,37 @@ function normalize(name: string, params: Record<string, unknown>): Record<string
     const parts = out.due_date.split('/');
     if (parts.length === 3 && (parts[0]?.length ?? 0) === 2) {
       out.due_date = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+  }
+  // lot initial de tâches / jalons : mêmes valeurs françaises, un niveau plus bas
+  if (name === 'project_create') {
+    const isoDate = (v: unknown): unknown => {
+      if (typeof v !== 'string' || !v.includes('/')) return v;
+      const parts = v.split('/');
+      return parts.length === 3 && (parts[0]?.length ?? 0) === 2
+        ? `${parts[2]}-${parts[1]}-${parts[0]}`
+        : v;
+    };
+    if (Array.isArray(out.tasks)) {
+      out.tasks = out.tasks.map((t) => {
+        if (!t || typeof t !== 'object') return t;
+        const task = { ...(t as Record<string, unknown>) };
+        const mapped = PRIORITY_MAP[norm(task.priority)];
+        if (mapped) task.priority = mapped;
+        if (task.priority !== undefined && !PRIORITY_VALUES.includes(String(task.priority))) {
+          task.priority = 'normal';
+        }
+        task.due_date = isoDate(task.due_date);
+        return task;
+      });
+    }
+    if (Array.isArray(out.milestones)) {
+      out.milestones = out.milestones.map((m) => {
+        if (!m || typeof m !== 'object') return m;
+        const milestone = { ...(m as Record<string, unknown>) };
+        milestone.due_date = isoDate(milestone.due_date);
+        return milestone;
+      });
     }
   }
   return out;
@@ -447,6 +584,11 @@ export async function executeAction(
         due_date?: string | null;
         budget_amount?: number | null;
         budget_currency: string;
+        template?: string;
+        client_name?: string;
+        note?: string;
+        tasks?: { title: string; priority: string; due_date?: string | null; stage?: string }[];
+        milestones?: { title: string; due_date: string }[];
       };
       // référence PRJ-AAAA-NNN : on repart du plus grand numéro de l'année (jamais un comptage,
       // qui collide après une suppression)
@@ -458,25 +600,109 @@ export async function executeAction(
       const nextNum = Number(String(last?.max ?? '').split('-')[2] ?? 0) + 1;
       const reference = `PRJ-${year}-${String(nextNum).padStart(3, '0')}`;
 
+      // modèle d'étapes : recherche par nom, jamais d'étape inventée côté code
+      const template = p.template?.trim()
+        ? await one<{
+            id: string;
+            category: string | null;
+            stages: { name: string; description?: string; weight?: number }[];
+          }>(
+            `select id, category, stages from project_templates
+              where is_active and name ilike '%' || $1 || '%'
+              order by length(name) limit 1`,
+            [p.template.trim()],
+          )
+        : null;
+
       const row = await one<{ id: string; reference: string }>(
-        `insert into projects_pm(reference, name, description, status, priority, due_date,
-             budget_amount, budget_currency, owner_id)
-         values($1,$2,$3,'planning',$4,$5,$6,$7,$8)
+        `insert into projects_pm(reference, name, description, category, client_name, status, priority,
+             due_date, budget_amount, budget_currency, owner_id, template_id)
+         values($1,$2,$3,$4,$5,'planning',$6,$7,$8,$9,$10,$11)
          returning id, reference`,
         [
           reference,
           p.name,
           p.description,
+          template?.category ?? null,
+          p.client_name?.trim() || null,
           p.priority,
           p.due_date ?? null,
           p.budget_amount ?? null,
           p.budget_currency,
           actorId,
+          template?.id ?? null,
         ],
       );
       if (!row) throw new AppError(500, 'INTERNAL', 'Création du projet impossible.');
+
+      // étapes issues du modèle (aucune étape codée en dur)
+      const stages: { id: string; name: string }[] = [];
+      for (const [i, stage] of (template?.stages ?? []).entries()) {
+        const created = await one<{ id: string; name: string }>(
+          `insert into project_stages(project_id,name,description,position,weight)
+           values($1,$2,$3,$4,$5) returning id, name`,
+          [row.id, stage.name, stage.description ?? '', i, Math.min(10, Math.max(1, stage.weight ?? 1))],
+        );
+        if (created) stages.push(created);
+      }
+
+      // tâches initiales : rattachées à l'étape nommée si elle existe, sinon réparties
+      // sur les étapes (sinon tout atterrit dans la première et le Kanban est faux)
+      let tasksCreated = 0;
+      for (const [i, task] of (p.tasks ?? []).entries()) {
+        const wanted = task.stage?.trim().toLowerCase();
+        const stage =
+          (wanted ? stages.find((s) => s.name.toLowerCase().includes(wanted)) : undefined) ??
+          (stages.length ? stages[i % stages.length] : undefined);
+        await one(
+          `insert into tasks(project_id,stage_id,title,priority,due_date,status,position)
+           values($1,$2,$3,$4,$5,'todo',$6)`,
+          [row.id, stage?.id ?? null, task.title, task.priority, task.due_date ?? null, i],
+        );
+        tasksCreated += 1;
+      }
+
+      let milestonesCreated = 0;
+      for (const milestone of p.milestones ?? []) {
+        await one(`insert into milestones(project_id,name,due_date) values($1,$2,$3)`, [
+          row.id,
+          milestone.title,
+          milestone.due_date,
+        ]);
+        milestonesCreated += 1;
+      }
+
+      // brief du projet dans l'onglet Notes (jamais une note vide)
+      const noteBody = p.note?.trim() || p.description?.trim();
+      if (noteBody) {
+        await one(
+          `insert into project_notes(project_id, kind, title, body, author_id)
+           values($1,'note','Brief du projet',$2,$3)`,
+          [row.id, noteBody, actorId],
+        );
+      }
+
+      await one(
+        `insert into project_activities(project_id, kind, label, meta, actor_id)
+         values($1,'project.created',$2,$3::jsonb,$4)`,
+        [
+          row.id,
+          `Projet « ${p.name} » créé par l’assistant`,
+          JSON.stringify({ source: 'ai', stages: stages.length, tasks: tasksCreated, milestones: milestonesCreated }),
+          actorId,
+        ],
+      );
+
       await auditAction('project_create', { project_id: row.id, name: p.name }, actorId, null);
-      return { summary: `Projet ${row.reference} créé : ${p.name}`, link: '/admin/projets' };
+      const details = [
+        stages.length ? `${stages.length} étape${stages.length > 1 ? 's' : ''}` : '',
+        tasksCreated ? `${tasksCreated} tâche${tasksCreated > 1 ? 's' : ''}` : '',
+        milestonesCreated ? `${milestonesCreated} jalon${milestonesCreated > 1 ? 's' : ''}` : '',
+      ].filter(Boolean);
+      return {
+        summary: `Projet ${row.reference} créé : ${p.name}${details.length ? ` — ${details.join(', ')}` : ''}`,
+        link: `/admin/projets/${row.id}`,
+      };
     }
     case 'milestone_create': {
       const p = params as { project_id: string; title: string; due_date: string };

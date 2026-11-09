@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACTION_SPECS, describeAction, extractAction, isActionName } from '../src/modules/ai/actions.js';
+import { ACTION_SPECS, actionsForPrompt, describeAction, extractAction, extractActionLoose, isActionName } from '../src/modules/ai/actions.js';
 
 /**
  * Tests unitaires des actions assistées : aucune base, aucun réseau.
@@ -109,5 +109,84 @@ describe('normalisation des valeurs écrites en français', () => {
   it('marque l’envoi d’email comme sensible', () => {
     const r = describeAction('email_send', { to: 'a@b.cd', subject: 'Test', body: 'Bonjour' });
     expect(r.sensitive).toBe(true);
+  });
+});
+
+describe('projet complet créé par l’assistant', () => {
+  it('accepte un modèle d’étapes, des tâches et des jalons', () => {
+    const r = describeAction('project_create', {
+      name: 'Refonte du site vitrine',
+      template: 'site vitrine',
+      budget_amount: 4500,
+      tasks: [
+        { title: 'Cadrage et brief client', priority: 'haute', due_date: '10/12/2026' },
+        { title: 'Maquettes des 5 pages', priority: 'normale', stage: 'Design' },
+      ],
+      milestones: [{ title: 'Validation des maquettes', due_date: '20/12/2026' }],
+    });
+    const params = r.params as {
+      template: string;
+      tasks: { title: string; priority: string; due_date?: string | null }[];
+      milestones: { title: string; due_date: string }[];
+    };
+    expect(params.template).toBe('site vitrine');
+    expect(params.tasks).toHaveLength(2);
+    // normalisation descendue dans les listes : priorité et date françaises
+    expect(params.tasks[0]?.priority).toBe('high');
+    expect(params.tasks[0]?.due_date).toBe('2026-12-10');
+    expect(params.milestones[0]?.due_date).toBe('2026-12-20');
+    expect(r.label).toContain('2 tâches');
+    expect(r.label).toContain('1 jalon');
+  });
+
+  it('reste utilisable sans tâche ni modèle', () => {
+    const r = describeAction('project_create', { name: 'Projet interne' });
+    const params = r.params as { tasks: unknown[]; milestones: unknown[] };
+    expect(params.tasks).toEqual([]);
+    expect(params.milestones).toEqual([]);
+    expect(r.label).toBe('Créer le projet « Projet interne »');
+  });
+
+  it('expose project_create dans le catalogue du prompt agent', () => {
+    expect(actionsForPrompt()).toContain('project_create');
+    expect(actionsForPrompt()).toContain('Créer un projet');
+  });
+});
+
+describe('réparation d’une action coupée par la limite de tokens', () => {
+  it('referme un JSON tronqué au milieu des tâches', () => {
+    // cas réel : le modèle écrit un projet avec 13 tâches, la réponse est coupée
+    const tronque =
+      'Je crée le projet.\n```action\n{"action":"project_create","params":{"name":"Refonte site vitrine",' +
+      '"template":"site vitrine","tasks":[{"title":"Cadrage","priority":"haute"},{"title":"Maquettes","prio';
+    const r = extractActionLoose(tronque);
+    expect(r?.name).toBe('project_create');
+    expect(r?.params.name).toBe('Refonte site vitrine');
+    expect(Array.isArray(r?.params.tasks)).toBe(true);
+  });
+
+  it('ne répare pas une réponse sans action', () => {
+    expect(extractActionLoose('Voici le planning de la semaine, sans JSON.')).toBeNull();
+  });
+
+  it('ignore une action hors liste blanche même tronquée', () => {
+    expect(extractActionLoose('```action\n{"action":"drop_schema","params":{')).toBeNull();
+  });
+
+  it('laisse la version stricte refuser un JSON coupé (elle ne devine pas)', () => {
+    expect(extractAction('```action\n{"action":"project_create","params":{"name":"X"')).toBeNull();
+  });
+});
+
+describe('robustesse des synonymes de priorité', () => {
+  it('accepte « moyenne » et « très haute » sans rejeter l’action', () => {
+    const r = describeAction('project_create', {
+      name: 'Projet test priorités',
+      priority: 'très haute',
+      tasks: [{ title: 'Tâche une', priority: 'moyenne' }],
+    });
+    const params = r.params as { priority: string; tasks: { priority: string }[] };
+    expect(params.priority).toBe('normal');
+    expect(params.tasks[0]?.priority).toBe('normal');
   });
 });

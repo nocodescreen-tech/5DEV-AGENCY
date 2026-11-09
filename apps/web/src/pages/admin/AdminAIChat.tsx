@@ -158,11 +158,19 @@ export default function AdminAIChat() {
     // mode agent : le serveur consulte la base (outils de lecture) puis répond
     if (agentMode) {
       try {
-        const out = await apiPost<{ text: string; steps: { tool: string; label: string; rows: number }[] }>(
-          '/api/v1/admin/ai-chat/agent',
-          { conversation_id: id, message: content },
-        );
+        const out = await apiPost<{
+          text: string;
+          steps: { tool: string; label: string; rows: number }[];
+          proposal: { name: string; params: Record<string, unknown>; label: string; sensitive: boolean } | null;
+        }>('/api/v1/admin/ai-chat/agent', { conversation_id: id, message: content });
         setAgentSteps(out.steps ?? []);
+        // une action proposée doit apparaître en carte de confirmation, sinon le mode agent
+        // répond « je n'ai pas d'outil » du point de vue de l'utilisateur.
+        if (out.proposal) {
+          setPending(out.proposal);
+          setActionState('idle');
+          setActionError(null);
+        }
         // le fil est une requête distincte : sans cette invalidation, la réponse n'apparaît
         // qu'après un rechargement de la page.
         await qc.invalidateQueries({ queryKey: ['ai-conv-detail', id] });

@@ -10,3 +10,6 @@ coverage/
 .venv/
 storage/
 !.gitkeep
+
+# captures de vérification locales
+.qa/

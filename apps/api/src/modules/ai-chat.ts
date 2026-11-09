@@ -6,7 +6,7 @@ import { requireAdmin, validate } from '../middlewares/auth.js';
 import { NvidiaError, listModels, streamChat, type ChatMessage } from './ai/providers/nvidia.js';
 import { writeSecret, secretInfo, deleteSecret, readSecret } from '../lib/secrets.js';
 import { invalidateKeyCache } from './ai/providers/nvidia.js';
-import { ACTION_SPECS, auditAction, describeAction, executeAction, extractAction } from './ai/actions.js';
+import { ACTION_SPECS, actionsForPrompt, auditAction, describeAction, executeAction, extractAction, extractActionLoose } from './ai/actions.js';
 import { readToolsForPrompt, runReadTool } from './ai/actions.js';
 import { chat as chatOnce } from './ai/providers/nvidia.js';
 
@@ -325,7 +325,7 @@ Règles : une seule action par réponse, uniquement si l'utilisateur la demande 
       );
 
       // le modèle a pu proposer une action : on la valide et on l'envoie comme proposition
-      const proposed = extractAction(answer);
+      const proposed = extractAction(answer) ?? extractActionLoose(answer);
       if (proposed) {
         try {
           const described = describeAction(proposed.name, proposed.params);
@@ -595,6 +595,7 @@ const agentSchema = z.object({
 
 const AGENT_SYSTEM = `Tu es l'assistant interne de 5DEV (agence numérique à Matadi).
 Tu réponds en français, de façon concise et concrète, avec des chiffres réels.
+Date du jour : __TODAY__ (n'utilise jamais une date passée pour une échéance à venir).
 
 Pour consulter les données du studio, tu peux demander un outil de lecture en émettant
 exactement ce bloc JSON, seul sur sa ligne :
@@ -603,12 +604,37 @@ exactement ce bloc JSON, seul sur sa ligne :
 {"tool": "read_stats", "params": {}}
 \`\`\`
 
-Outils disponibles :
-${''}__TOOLS__
+Outils de lecture disponibles :
+__TOOLS__
 
 Après le résultat, tu continues ta réponse normalement. Tu peux enchaîner plusieurs lectures
-(maximum 3). Si une action modifierait la base, tu ne l'exécutes pas : tu la proposes au format
-d'action (bloc action) et tu attends la confirmation de l'utilisateur.
+(maximum 3).
+
+ACTIONS DISPONIBLES (tu ne les exécutes JAMAIS toi-même : tu les proposes) :
+__ACTIONS__
+
+Quand l'utilisateur demande de créer, modifier, supprimer ou envoyer quelque chose, tu ne
+réponds JAMAIS « je n'ai pas d'outil pour faire ça » : tu choisis l'action correspondante dans
+la liste ci-dessus et tu émets exactement ce bloc, seul sur sa ligne :
+
+\`\`\`action
+{"action": "project_create", "params": {"name": "Refonte site vitrine", "template": "site vitrine", "tasks": [{"title": "Cadrage et brief client"}]}}
+\`\`\`
+
+Règles des actions :
+- Une seule action par réponse, en dernier bloc du message.
+- Les paramètres suivent le schéma de l'action ; les listes (tasks, milestones) sont autorisées.
+- project_create accepte "template" (nom du modèle d'étapes : site vitrine, e-commerce, app web,
+  photographie, marketing, infrastructure, projet interne), "tasks", "milestones", "client_name"
+  et "note" (brief rédigé) pour créer un projet complet et directement utilisable.
+- Reste court : description ≤ 2 phrases, note ≤ 4 phrases, **4 à 8 tâches maximum**, 2 à 3 jalons.
+  Un JSON trop long est coupé en plein milieu et l'action est perdue : mieux vaut un projet
+  juste avec 6 tâches qu'un roman tronqué.
+- Pour les identifiants (project_id, task_id, lead_id) : lis d'abord la base avec un outil de
+  lecture, ne les invente jamais.
+- Les dates s'écrivent AAAA-MM-JJ.
+- L'utilisateur voit ensuite une carte « Confirmer et exécuter » : ton message doit annoncer ce
+  que l'action va faire, sans prétendre qu'elle est déjà faite.
 N'invente jamais une valeur : si une donnée n'est pas dans les résultats, dis-le.`;
 
 aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) => {
@@ -631,12 +657,14 @@ aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) =
       [conv.id],
     );
 
+    const systemPrompt = AGENT_SYSTEM.replace('__TOOLS__', readToolsForPrompt())
+      .replace('__ACTIONS__', actionsForPrompt())
+      .replace('__TODAY__', new Date().toISOString().slice(0, 10));
+
     const messages: ChatMessage[] = [
       {
         role: 'system',
-        content: conv.system_prompt?.trim()
-          ? `${conv.system_prompt.trim()}\n\n${AGENT_SYSTEM.replace('__TOOLS__', readToolsForPrompt())}`
-          : AGENT_SYSTEM.replace('__TOOLS__', readToolsForPrompt()),
+        content: (conv.system_prompt?.trim() ? `${conv.system_prompt.trim()}\n\n` : '') + systemPrompt,
       },
       ...history.map((m) => ({ role: m.role as ChatMessage['role'], content: m.content })),
     ];
@@ -647,7 +675,9 @@ aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) =
     for (let turn = 0; turn < 3; turn++) {
       const out = await chatOnce(model, messages, {
         temperature: Number(conv.temperature) || 0.4,
-        maxTokens: Number(conv.max_tokens) || 900,
+        // une action project_create avec ses tâches dépasse 900 tokens : coupée, elle serait
+        // perdue (le JSON n'est plus parsable). Le mode agent garde donc un plancher plus haut.
+        maxTokens: Math.max(1600, Number(conv.max_tokens) || 0),
       });
       answer = out.text;
 
@@ -677,8 +707,29 @@ aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) =
     }
 
     // une proposition d'action éventuelle reste à confirmer, jamais exécutée ici
-    const proposal = extractAction(answer);
-    const clean = answer.replace(/```(?:tool|action|json)?[\s\S]*?```/g, '').trim() || answer.trim();
+    const extracted = extractAction(answer) ?? extractActionLoose(answer);
+    let proposal: { name: string; params: Record<string, unknown>; label: string; sensitive: boolean } | null = null;
+    if (extracted) {
+      try {
+        // describeAction valide les paramètres et produit le libellé lisible de la carte
+        // de confirmation : sans lui, l'UI n'a rien à afficher et jette la proposition.
+        proposal = describeAction(extracted.name, extracted.params);
+      } catch {
+        proposal = null;
+      }
+    }
+    // bloc ```action non refermé (réponse coupée) : on le retire quand même du fil
+    const stripped = answer
+      .replace(/```(?:tool|action|json)?[\s\S]*?```/g, '')
+      .replace(/```(?:tool|action)[\s\S]*$/, '')
+      .trim();
+    // réponse composée UNIQUEMENT du bloc d'action : ne pas réafficher le JSON brut,
+    // écrire la phrase qui accompagne la carte de confirmation.
+    const clean =
+      stripped ||
+      (proposal
+        ? `Action proposée : ${proposal.label}. Vérifiez les détails puis confirmez ci-dessous.`
+        : answer.trim());
 
     await one(
       `insert into ai_messages(conversation_id, role, content) values($1,'assistant',$2)`,
@@ -691,7 +742,7 @@ aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) =
       data: {
         text: clean,
         steps,
-        proposal: proposal ? { name: proposal.name, params: proposal.params } : null,
+        proposal,
       },
     });
   } catch (err) {

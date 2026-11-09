@@ -8,6 +8,7 @@
    Ces variables reflètent tailwind.config.js (source unique côté build).
    ========================================================================== */
 :root {
+  /* couleurs "prêtes à l'emploi" pour le CSS classique */
   --brand: #f47721;
   --brand-600: #d9610f;
   --ink: #171717;
@@ -16,6 +17,46 @@
   --muted: #737373;
   --line: #e6e2dd;
   --wash: #f5f5f5;
+
+  /* mêmes couleurs en triplets RGB : Tailwind peut alors appliquer une opacité
+     (bg-ink/60, text-ink/65…) tout en restant pilotable par le thème. */
+  --c-brand: 244 119 33;
+  --c-brand-dark: 217 97 15;
+  --c-ink: 23 23 23;
+  --c-ink-soft: 42 42 42;
+  --c-paper: 255 255 255;
+  --c-muted: 115 115 115;
+  --c-line: 230 226 221;
+  --c-wash: 245 245 245;
+}
+
+/* ------------------------------------------------------------------ sombre
+   Deux jeux cohérents : le CSS qui lit var(--ink) et Tailwind qui lit var(--c-ink).
+   L'orange reste identique (contraste tenu sur fond sombre). */
+html[data-theme='dark'] {
+  --ink: #f2f0ec;
+  --ink-soft: #d8d5d0;
+  --paper: #121212;
+  --muted: #a3a09a;
+  --line: #2e2e2e;
+  --wash: #1b1b1b;
+
+  --c-ink: 242 240 236;
+  --c-ink-soft: 216 213 208;
+  --c-paper: 18 18 18;
+  --c-muted: 163 160 154;
+  --c-line: 46 46 46;
+  --c-wash: 27 27 27;
+
+  color-scheme: dark;
+}
+
+/* les fonds noirs de section restent lisibles en sombre : on les éclaircit légèrement */
+html[data-theme='dark'] .bg-ink {
+  background-color: #1d1d1d !important;
+}
+html[data-theme='dark'] .text-white {
+  color: #f2f0ec;
 }
 
 @layer base {

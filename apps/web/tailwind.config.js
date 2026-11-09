@@ -1,17 +1,20 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: ['selector', '[data-theme="dark"]'],
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // Les couleurs passent par des variables CSS : le thème sombre les remplace
+      // d'un bloc, et /opacité continue de fonctionner (<alpha-value>).
       colors: {
-        brand: '#f47721',  // token 5DEV — source unique avec index.css :root
-        brandDark: '#d9610f',
-        ink: '#171717',
-        inkSoft: '#2a2a2a',
-        paper: '#ffffff',
-        muted: '#6b6b6b',
-        line: '#e6e2dd',
-        wash: '#faf8f5',
+        brand: 'rgb(var(--c-brand) / <alpha-value>)',
+        brandDark: 'rgb(var(--c-brand-dark) / <alpha-value>)',
+        ink: 'rgb(var(--c-ink) / <alpha-value>)',
+        inkSoft: 'rgb(var(--c-ink-soft) / <alpha-value>)',
+        paper: 'rgb(var(--c-paper) / <alpha-value>)',
+        muted: 'rgb(var(--c-muted) / <alpha-value>)',
+        line: 'rgb(var(--c-line) / <alpha-value>)',
+        wash: 'rgb(var(--c-wash) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],

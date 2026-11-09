@@ -75,6 +75,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     root.dataset.density = density;
     root.style.setProperty('--brand', ACCENTS[accent].main);
     root.style.setProperty('--brand-600', ACCENTS[accent].dark);
+    // même accent en triplet pour Tailwind
+    root.style.setProperty('--c-brand', hexToRgbTriplet(ACCENTS[accent].main));
+    root.style.setProperty('--c-brand-dark', hexToRgbTriplet(ACCENTS[accent].dark));
     root.style.colorScheme = resolved;
     try {
       localStorage.setItem(KEY, JSON.stringify({ theme, accent, density }));
@@ -103,4 +106,11 @@ export function useTheme(): Ctx {
   const ctx = useContext(ThemeCtx);
   if (!ctx) throw new Error('useTheme doit être utilisé dans <ThemeProvider>');
   return ctx;
+}
+
+/** #f47721 → "244 119 33" (format attendu par rgb(var(--x) / alpha)) */
+function hexToRgbTriplet(hex: string): string {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.replace(/./g, (c) => c + c) : h, 16);
+  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
 }

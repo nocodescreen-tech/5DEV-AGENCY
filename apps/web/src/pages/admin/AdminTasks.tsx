@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { Check, RotateCcw } from 'lucide-react';
 import { apiGet, apiPatch } from '../../lib/api';
 import { DeleteButton } from '../../components/DeleteButton';
 import { frDate } from '../../lib/format';
@@ -142,11 +143,27 @@ export default function AdminTasks() {
                     </select>
                   </td>
                   <td className="py-2 text-right">
-                    <DeleteButton
-                      label={`la tâche « ${t.title} »`}
-                      path={`/api/v1/admin/pm/tasks/${t.id}`}
-                      invalidate={[['all-tasks'], ['pm-project'], ['dashboard']]}
-                    />
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => patch.mutate({ id: t.id, value: t.status === 'done' ? 'todo' : 'done' })}
+                        disabled={patch.isPending}
+                        title={t.status === 'done' ? 'Rouvrir la tâche' : 'Marquer comme terminée'}
+                        className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition disabled:opacity-50 ${
+                          t.status === 'done'
+                            ? 'border-line text-muted hover:border-brand hover:text-brand'
+                            : 'border-brand/40 text-brand hover:bg-brand hover:text-white'
+                        }`}
+                      >
+                        {t.status === 'done' ? <RotateCcw className="size-3" /> : <Check className="size-3" />}
+                        {t.status === 'done' ? 'Rouvrir' : 'Terminer'}
+                      </button>
+                      <DeleteButton
+                        label={`la tâche « ${t.title} »`}
+                        path={`/api/v1/admin/pm/tasks/${t.id}`}
+                        invalidate={[['all-tasks'], ['pm-project'], ['dashboard']]}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}

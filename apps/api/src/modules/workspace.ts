@@ -123,6 +123,52 @@ workspaceRouter.get('/admin/pm/overview', requireAdmin, async (_req, res, next) 
 
 /* ------------------------------------------------------------------ projets */
 
+/* ------------------------------------------------------------------ clients */
+
+/**
+ * Un client est unique par son nom (index `clients_name_unique` sur lower(name)).
+ * On complète sa fiche sans jamais écraser une coordonnée existante par une valeur vide :
+ * c'est ce qui permet de retrouver email / téléphone / adresse au projet suivant.
+ */
+export async function upsertClient(c: {
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+}) {
+  const name = c.name.trim();
+  if (!name) return null;
+  return one<{ id: string; email: string | null; phone: string | null; address: string | null }>(
+    `insert into clients(name, email, phone, address)
+     values($1,$2,$3,$4)
+     on conflict (lower(name)) do update
+        set email   = coalesce(excluded.email, clients.email),
+            phone   = coalesce(excluded.phone, clients.phone),
+            address = coalesce(excluded.address, clients.address),
+            updated_at = now()
+     returning id, email, phone, address`,
+    [name, c.email?.trim() || null, c.phone?.trim() || null, c.address?.trim() || null],
+  );
+}
+
+workspaceRouter.get('/admin/pm/clients', requireAdmin, async (req, res, next) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const rows = await all(
+      `select c.*,
+              (select count(*) from projects_pm p where p.client_id=c.id and p.deleted_at is null)::int as projets
+         from clients c
+        where ($1 = '' or c.name ilike '%' || $1 || '%' or coalesce(c.company,'') ilike '%' || $1 || '%')
+        order by c.name
+        limit 50`,
+      [q],
+    );
+    res.json({ ok: true, data: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
 const projectSchema = z.object({
   name: z.string().min(2).max(160),
   description: z.string().max(8000).default(''),
@@ -130,6 +176,9 @@ const projectSchema = z.object({
     .enum(['dev-web', 'app-web', 'photo', 'marketing', 'infra', 'interne', 'recherche'])
     .default('dev-web'),
   client_name: z.string().max(160).nullable().optional(),
+  client_email: z.string().email().max(180).nullable().optional(),
+  client_phone: z.string().max(40).nullable().optional(),
+  client_address: z.string().max(300).nullable().optional(),
   template_id: z.string().uuid().nullable().optional(),
   status: z.enum(['planning', 'active', 'paused', 'blocked', 'done', 'archived']).default('planning'),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
@@ -150,7 +199,20 @@ workspaceRouter.get('/admin/pm/projects', requireAdmin, async (req, res, next) =
               coalesce(pr.progress, 0) as progress,
               (select count(*) from tasks t where t.project_id=p.id and t.deleted_at is null)::int as tasks_total,
               (select count(*) from tasks t where t.project_id=p.id and t.status='done' and t.deleted_at is null)::int as tasks_done,
-              (select count(*) from tasks t where t.project_id=p.id and t.status<>'done' and t.deleted_at is null and t.due_date < current_date)::int as tasks_late
+              (select count(*) from tasks t where t.project_id=p.id and t.status<>'done' and t.deleted_at is null and t.due_date < current_date)::int as tasks_late,
+              -- tâches affichées À CÔTÉ du projet : ouvertes d'abord, les plus proches d'abord.
+              -- La liste est bornée : une carte de projet n'est pas un Kanban.
+              coalesce((
+                select json_agg(x)
+                  from (
+                    select t.id, t.title, t.status, t.priority, t.due_date, s.name as stage_name
+                      from tasks t
+                      left join project_stages s on s.id = t.stage_id
+                     where t.project_id = p.id and t.deleted_at is null
+                     order by (t.status = 'done'), t.due_date nulls last, t.position
+                     limit 6
+                  ) x
+              ), '[]'::json) as tasks_preview
          from projects_pm p
          ${PROGRESS_LATERAL}
         where p.deleted_at is null and ($1::text is null or p.status = $1)
@@ -167,21 +229,43 @@ workspaceRouter.post('/admin/pm/projects', requireAdmin, validate(projectSchema)
   try {
     const p = req.body as z.infer<typeof projectSchema>;
 
+    // le client est identifié par son nom : sa fiche (email, téléphone, adresse) est reprise
+    // au projet suivant, et complétée ici si le formulaire apporte une coordonnée nouvelle.
+    const client = p.client_name?.trim()
+      ? await upsertClient({
+          name: p.client_name,
+          email: p.client_email,
+          phone: p.client_phone,
+          address: p.client_address,
+        })
+      : null;
+    const contact = {
+      email: p.client_email?.trim() || client?.email || null,
+      phone: p.client_phone?.trim() || client?.phone || null,
+      address: p.client_address?.trim() || client?.address || null,
+    };
+
     // 3 tentatives maximum : la référence peut être prise par une création concurrente
     let project: { id: string; reference: string } | null = null;
     for (let attempt = 0; attempt < 3 && !project; attempt++) {
       const reference = attempt === 0 ? await nextReference() : `PRJ-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`;
       project = await one<{ id: string; reference: string }>(
-      `insert into projects_pm(reference,name,description,category,client_name,owner_id,template_id,
-          status,priority,start_date,due_date,budget_amount,budget_currency,technologies,objectives,deliverables)
-       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      `insert into projects_pm(reference,name,description,category,client_name,client_id,
+          client_email,client_phone,client_address,
+          owner_id,template_id,status,priority,start_date,due_date,budget_amount,budget_currency,
+          technologies,objectives,deliverables)
+       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        returning id, reference`,
       [
         reference,
         p.name,
         p.description,
         p.category,
-        p.client_name ?? null,
+        p.client_name || null,
+        client?.id ?? null,
+        contact.email,
+        contact.phone,
+        contact.address,
         req.user?.id ?? null,
         p.template_id ?? null,
         p.status,
@@ -234,7 +318,7 @@ workspaceRouter.get('/admin/pm/projects/:id', requireAdmin, async (req, res, nex
     const project = await one(`select * from projects_pm where id=$1 and deleted_at is null`, [String(req.params.id)]);
     if (!project) throw new AppError(404, 'NOT_FOUND', 'Projet introuvable.');
 
-    const [stages, tasks, documents, notes, activity, time, deps] = await Promise.all([
+    const [stages, tasks, documents, notes, activity, time, deps, client] = await Promise.all([
       all(`select * from project_stages where project_id=$1 order by position, created_at`, [String(req.params.id)]),
       all(
         `select t.*, s.name as stage_name,
@@ -258,6 +342,12 @@ workspaceRouter.get('/admin/pm/projects/:id', requireAdmin, async (req, res, nex
            join tasks t on t.id = d.task_id where t.project_id = $1`,
         [String(req.params.id)],
       ),
+      one(
+        `select c.* from clients c
+           join projects_pm p on p.client_id = c.id
+          where p.id = $1`,
+        [String(req.params.id)],
+      ),
     ]);
 
     res.json({
@@ -270,6 +360,7 @@ workspaceRouter.get('/admin/pm/projects/:id', requireAdmin, async (req, res, nex
         notes,
         activity,
         dependencies: deps,
+        client: client ?? null,
         time: { totalMinutes: Number(time?.minutes_total ?? 0), weekMinutes: Number(time?.minutes_week ?? 0) },
       },
     });
@@ -285,6 +376,31 @@ workspaceRouter.patch(
   async (req, res, next) => {
     try {
       const p = req.body as Partial<z.infer<typeof projectSchema>>;
+
+      // coordonnées client modifiées → on met à jour la fiche client partagée et le lien
+      if (['client_name', 'client_email', 'client_phone', 'client_address'].some((k) => k in p)) {
+        const current = await one<{ client_name: string | null }>(
+          `select client_name from projects_pm where id=$1 and deleted_at is null`,
+          [String(req.params.id)],
+        );
+        if (!current) throw new AppError(404, 'NOT_FOUND', 'Projet introuvable.');
+        const name = (p.client_name ?? current.client_name ?? '').trim();
+        if (name) {
+          const c = await upsertClient({
+            name,
+            email: p.client_email,
+            phone: p.client_phone,
+            address: p.client_address,
+          });
+          if (c) {
+            (p as Record<string, unknown>).client_id = c.id;
+            if (p.client_email === undefined) (p as Record<string, unknown>).client_email = c.email;
+            if (p.client_phone === undefined) (p as Record<string, unknown>).client_phone = c.phone;
+            if (p.client_address === undefined) (p as Record<string, unknown>).client_address = c.address;
+          }
+        }
+      }
+
       const keys = Object.keys(p);
       if (!keys.length) throw new AppError(422, 'VALIDATION', 'Aucun champ à modifier.');
       const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');

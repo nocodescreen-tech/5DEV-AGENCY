@@ -582,6 +582,183 @@ aiChatRouter.delete('/admin/ai/key', requireAdmin, async (_req, res, next) => {
 });
 
 /* ---------------------------------------------------------------------------------------
+ * Bulle d'assistant : analyse de l'application toutes les 10 minutes.
+ *
+ * Aucun appel au modèle : les constats sont calculés en SQL (donc gratuits et vérifiables)
+ * et reformulés en français. Le cache de 10 minutes évite de recalculer à chaque montage
+ * de la bulle ; ?force=1 le contourne (bouton « Actualiser »).
+ * ------------------------------------------------------------------------------------- */
+
+type Insight = { id: string; tone: 'urgent' | 'attention' | 'info'; title: string; detail: string; link: string; cta: string };
+let assistantCache: { at: number; insights: Insight[] } | null = null;
+const ASSISTANT_TTL = 10 * 60_000;
+
+async function buildInsights(): Promise<Insight[]> {
+  const out: Insight[] = [];
+
+  const late = await all<{ id: string; title: string; project_id: string; reference: string; due_date: string }>(
+    `select t.id, t.title, t.project_id, p.reference, t.due_date
+       from tasks t join projects_pm p on p.id=t.project_id
+      where t.deleted_at is null and p.deleted_at is null
+        and t.status <> 'done' and t.due_date < current_date
+      order by t.due_date limit 3`,
+  );
+  const lateCount = late.length
+    ? Number(
+        (
+          await one<{ n: number }>(
+            `select count(*)::int as n from tasks t join projects_pm p on p.id=t.project_id
+              where t.deleted_at is null and p.deleted_at is null
+                and t.status <> 'done' and t.due_date < current_date`,
+          )
+        )?.n ?? 0,
+      )
+    : 0;
+  if (lateCount > 0) {
+    out.push({
+      id: 'tasks-late',
+      tone: 'urgent',
+      title: `${lateCount} tâche${lateCount > 1 ? 's' : ''} en retard`,
+      detail: late.map((t) => `${t.title} (${t.reference})`).join(' · '),
+      link: '/admin/taches',
+      cta: 'Ouvrir les tâches',
+    });
+  }
+
+  const hollow = await all<{ id: string; name: string; reference: string }>(
+    `select p.id, p.name, p.reference from projects_pm p
+      where p.deleted_at is null and p.status not in ('done','archived')
+        and not exists (select 1 from tasks t where t.project_id=p.id and t.deleted_at is null)
+      order by p.created_at desc limit 3`,
+  );
+  if (hollow.length) {
+    out.push({
+      id: 'projects-empty',
+      tone: 'attention',
+      title: `${hollow.length} projet${hollow.length > 1 ? 's' : ''} sans aucune tâche`,
+      detail: hollow.map((p) => `${p.reference} · ${p.name}`).join(' · '),
+      link: '/admin/projets',
+      cta: 'Voir les projets',
+    });
+  }
+
+  const unassigned = await one<{ n: number }>(
+    `select count(*)::int as n from tasks t join projects_pm p on p.id=t.project_id
+      where t.deleted_at is null and p.deleted_at is null
+        and t.status <> 'done' and t.assignee_id is null`,
+  );
+  const unassignedCount = Number(unassigned?.n ?? 0);
+  if (unassignedCount > 0) {
+    out.push({
+      id: 'tasks-unassigned',
+      tone: 'attention',
+      title: `${unassignedCount} tâche${unassignedCount > 1 ? 's' : ''} sans personne affectée`,
+      detail: 'Assignez-les : une tâche sans responsable ne se termine pas toute seule.',
+      link: '/admin/taches',
+      cta: 'Assigner',
+    });
+  }
+
+  const leads = await all<{ kind: string; n: number }>(
+    `select kind, count(*)::int as n from leads
+      where status='new' and created_at < now() - interval '48 hours'
+      group by kind order by n desc`,
+  );
+  const leadsCount = leads.reduce((s, l) => s + Number(l.n), 0);
+  if (leadsCount > 0) {
+    out.push({
+      id: 'leads-waiting',
+      tone: 'urgent',
+      title: `${leadsCount} demande${leadsCount > 1 ? 's' : ''} sans réponse depuis 48 h`,
+      detail: leads.map((l) => `${l.n} ${l.kind}`).join(' · '),
+      link: '/admin/demandes',
+      cta: 'Répondre',
+    });
+  }
+
+  const bookings = await one<{ n: number }>(`select count(*)::int as n from bookings where status='pending'`);
+  const bookingsCount = Number(bookings?.n ?? 0);
+  if (bookingsCount > 0) {
+    out.push({
+      id: 'bookings-pending',
+      tone: 'attention',
+      title: `${bookingsCount} réservation${bookingsCount > 1 ? 's' : ''} à confirmer`,
+      detail: 'Un créneau non confirmé reste bloqué pour tout le monde.',
+      link: '/admin/reservations',
+      cta: 'Confirmer',
+    });
+  }
+
+  const soon = await all<{ id: string; name: string; due_date: string; progress: number }>(
+    `select p.id, p.name, p.due_date, coalesce(pr.progress,0) as progress
+       from projects_pm p
+       left join lateral (
+         select round(100.0 * count(*) filter (where t.status='done') / greatest(count(*),1)) as progress
+           from tasks t where t.project_id=p.id and t.deleted_at is null
+       ) pr on true
+      where p.deleted_at is null and p.status not in ('done','archived')
+        and p.due_date is not null and p.due_date <= current_date + 14
+      order by p.due_date limit 3`,
+  );
+  if (soon.length) {
+    out.push({
+      id: 'projects-due',
+      tone: 'attention',
+      title: `${soon.length} échéance${soon.length > 1 ? 's' : ''} dans les 14 jours`,
+      detail: soon.map((p) => `${p.name} · ${Math.round(Number(p.progress))}% · ${p.due_date}`).join(' · '),
+      link: '/admin/planning',
+      cta: 'Voir le planning',
+    });
+  }
+
+  const blocked = await all<{ id: string; name: string }>(
+    `select id, name from projects_pm where deleted_at is null and status='blocked' limit 3`,
+  );
+  if (blocked.length) {
+    out.push({
+      id: 'projects-blocked',
+      tone: 'urgent',
+      title: `${blocked.length} projet${blocked.length > 1 ? 's' : ''} bloqué${blocked.length > 1 ? 's' : ''}`,
+      detail: blocked.map((p) => p.name).join(' · '),
+      link: `/admin/projets/${blocked[0]?.id ?? ''}`,
+      cta: 'Débloquer',
+    });
+  }
+
+  const missingContact = await one<{ n: number }>(
+    `select count(*)::int as n from clients where coalesce(email,'')='' and coalesce(phone,'')=''`,
+  );
+  const missingCount = Number(missingContact?.n ?? 0);
+  if (missingCount > 0) {
+    out.push({
+      id: 'clients-empty',
+      tone: 'info',
+      title: `${missingCount} fiche${missingCount > 1 ? 's' : ''} client sans coordonnées`,
+      detail: 'Sans email ni téléphone, impossible de répondre ou de relancer.',
+      link: '/admin/projets',
+      cta: 'Compléter',
+    });
+  }
+
+  return out;
+}
+
+aiChatRouter.get('/admin/ai/assistant', requireAdmin, async (req, res, next) => {
+  try {
+    const force = req.query.force === '1';
+    if (!force && assistantCache && Date.now() - assistantCache.at < ASSISTANT_TTL) {
+      res.json({ ok: true, data: { generated_at: new Date(assistantCache.at).toISOString(), cached: true, insights: assistantCache.insights } });
+      return;
+    }
+    const insights = await buildInsights();
+    assistantCache = { at: Date.now(), insights };
+    res.json({ ok: true, data: { generated_at: new Date(assistantCache.at).toISOString(), cached: false, insights } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------------------------------------------------------------------------------------
  * Mode agent : le modèle peut CONSULTER la base (outils de lecture) avant de répondre,
  * puis proposer une action qui reste soumise à confirmation humaine.
  *

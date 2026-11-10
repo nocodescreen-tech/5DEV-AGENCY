@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Clock, Paperclip, Pause, Pencil, Play, Plus, StickyNote } from 'lucide-react';
+import { ArrowLeft, Bot, Check, Clock, Paperclip, Pause, Pencil, Play, Plus, RotateCcw, StickyNote } from 'lucide-react';
 import { DeleteButton } from '../../components/DeleteButton';
 import { apiGet, apiPatch, apiPost } from '../../lib/api';
 import { frDate, frDateTime } from '../../lib/format';
@@ -36,6 +36,9 @@ type Detail = {
     priority: string;
     category: string;
     client_name: string | null;
+    client_email: string | null;
+    client_phone: string | null;
+    client_address: string | null;
     start_date: string | null;
     due_date: string | null;
     budget_amount: string | null;
@@ -86,6 +89,9 @@ export default function AdminProjectDetail() {
   const [editForm, setEditForm] = useState({
     name: '',
     client_name: '',
+    client_email: '',
+    client_phone: '',
+    client_address: '',
     category: 'dev-web',
     priority: 'normal',
     start_date: '',
@@ -123,6 +129,9 @@ export default function AdminProjectDetail() {
       apiPatch(`/api/v1/admin/pm/projects/${id}`, {
         name: editForm.name,
         client_name: editForm.client_name || null,
+        client_email: editForm.client_email || null,
+        client_phone: editForm.client_phone || null,
+        client_address: editForm.client_address || null,
         category: editForm.category,
         priority: editForm.priority,
         start_date: editForm.start_date || null,
@@ -140,6 +149,8 @@ export default function AdminProjectDetail() {
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['pm-project', id] });
     void qc.invalidateQueries({ queryKey: ['pm-projects'] });
+    void qc.invalidateQueries({ queryKey: ['all-tasks'] });
+    void qc.invalidateQueries({ queryKey: ['dashboard'] });
     void qc.invalidateQueries({ queryKey: ['workspace-overview'] });
     void qc.invalidateQueries({ queryKey: ['time-running'] });
   };
@@ -271,6 +282,21 @@ export default function AdminProjectDetail() {
             {p.due_date ? ` · échéance ${frDate(p.due_date)}` : ''}
             {p.budget_amount ? ` · budget ${Number(p.budget_amount).toLocaleString('fr-FR')} ${p.budget_currency}` : ''}
           </p>
+          {(p.client_email || p.client_phone || p.client_address) && (
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {p.client_email && (
+                <a href={`mailto:${p.client_email}`} className="text-ink/80 hover:text-brand">
+                  {p.client_email}
+                </a>
+              )}
+              {p.client_phone && (
+                <a href={`tel:${p.client_phone.replace(/[^+\d]/g, '')}`} className="text-ink/80 hover:text-brand">
+                  {p.client_phone}
+                </a>
+              )}
+              {p.client_address && <span className="text-muted">{p.client_address}</span>}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -281,6 +307,9 @@ export default function AdminProjectDetail() {
               setEditForm({
                 name: p.name,
                 client_name: p.client_name ?? '',
+                client_email: p.client_email ?? '',
+                client_phone: p.client_phone ?? '',
+                client_address: p.client_address ?? '',
                 category: p.category,
                 priority: p.priority,
                 start_date: p.start_date ?? '',
@@ -363,6 +392,24 @@ export default function AdminProjectDetail() {
             <div>
               <label className="label" htmlFor="e-client">Client</label>
               <input id="e-client" className="field" value={editForm.client_name} onChange={(e) => setEditForm({ ...editForm, client_name: e.target.value })} placeholder="vide = projet interne" />
+            </div>
+            <div>
+              <label className="label" htmlFor="e-client-email">
+                Email du client
+              </label>
+              <input id="e-client-email" type="email" className="field" value={editForm.client_email} onChange={(e) => setEditForm({ ...editForm, client_email: e.target.value })} placeholder="client@exemple.cd" />
+            </div>
+            <div>
+              <label className="label" htmlFor="e-client-phone">
+                Téléphone du client
+              </label>
+              <input id="e-client-phone" className="field" value={editForm.client_phone} onChange={(e) => setEditForm({ ...editForm, client_phone: e.target.value })} placeholder="+243 …" />
+            </div>
+            <div>
+              <label className="label" htmlFor="e-client-address">
+                Adresse du client
+              </label>
+              <input id="e-client-address" className="field" value={editForm.client_address} onChange={(e) => setEditForm({ ...editForm, client_address: e.target.value })} placeholder="Matadi, quartier…" />
             </div>
             <div>
               <label className="label" htmlFor="e-cat">Catégorie</label>
@@ -623,6 +670,18 @@ export default function AdminProjectDetail() {
                             </span>
                           )}
                           {t.comments > 0 && <span>{t.comments} comm.</span>}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveTask.mutate({ taskId: t.id, status: t.status === 'done' ? 'todo' : 'done' });
+                            }}
+                            title={t.status === 'done' ? 'Rouvrir la tâche' : 'Marquer comme terminée'}
+                            className="inline-flex items-center gap-0.5 rounded border border-brand/40 px-1 py-0.5 text-[10px] font-medium text-brand hover:bg-brand hover:text-white"
+                          >
+                            {t.status === 'done' ? <RotateCcw className="size-2.5" /> : <Check className="size-2.5" />}
+                            {t.status === 'done' ? 'Rouvrir' : 'Terminer'}
+                          </button>
                           <select
                             className="ml-auto max-w-[90px] bg-transparent text-[10px] text-muted"
                             value={(t as Task & { assignee_id?: string | null }).assignee_id ?? ''}

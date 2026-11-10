@@ -147,3 +147,26 @@ create table if not exists project_activities (
   created_at timestamptz not null default now()
 );
 create index if not exists project_activities_idx on project_activities(project_id, created_at desc);
+
+-- ------------------------------------------------------------------ clients
+-- Un projet appartient à un client identifié : ses coordonnées sont saisies une fois,
+-- puis reprises automatiquement au projet suivant (client_id + instantané sur le projet).
+create table if not exists clients (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  company text,
+  email text,
+  phone text,
+  address text,
+  city text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists clients_name_unique on clients (lower(name));
+
+alter table projects_pm add column if not exists client_id uuid references clients(id) on delete set null;
+alter table projects_pm add column if not exists client_email text;
+alter table projects_pm add column if not exists client_phone text;
+alter table projects_pm add column if not exists client_address text;
+create index if not exists projects_pm_client_id_idx on projects_pm(client_id);

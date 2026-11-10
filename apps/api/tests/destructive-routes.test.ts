@@ -69,3 +69,15 @@ describe('catalogue public — contenu servi sans session', () => {
     expect(res.status).not.toBe(401);
   });
 });
+
+describe('nouvelles routes — session obligatoire', () => {
+  it('refuse la liste des clients sans session', async () => {
+    const res = await request(app).get('/api/v1/admin/pm/clients');
+    expect(res.status).toBe(401);
+  });
+
+  it('refuse l’analyse de la bulle d’assistant sans session', async () => {
+    const res = await request(app).get('/api/v1/admin/ai/assistant');
+    expect(res.status).toBe(401);
+  });
+});

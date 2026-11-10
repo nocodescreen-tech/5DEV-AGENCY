@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { all, one } from '../../db/index.js';
 import { AppError } from '../../middlewares/errors.js';
 import { sendEmail, emailLayout } from '../../lib/email.js';
+import { upsertClient } from '../workspace.js';
 
 /**
  * Actions que l'assistant peut PROPOSER. Aucune n'est exécutée par le modèle :
@@ -88,6 +89,10 @@ export const ACTION_SPECS = {
         .default([]),
       // nom du client : sans lui la fiche affiche « projet interne »
       client_name: z.string().max(160).optional(),
+      // coordonnées : reprises de la fiche client si elle existe déjà
+      client_email: z.string().email().max(180).optional(),
+      client_phone: z.string().max(40).optional(),
+      client_address: z.string().max(300).optional(),
       // brief rédigé : posé en note de projet pour que l'onglet Notes ne soit pas vide
       note: z.string().max(8000).optional(),
     }),
@@ -586,6 +591,9 @@ export async function executeAction(
         budget_currency: string;
         template?: string;
         client_name?: string;
+        client_email?: string;
+        client_phone?: string;
+        client_address?: string;
         note?: string;
         tasks?: { title: string; priority: string; due_date?: string | null; stage?: string }[];
         milestones?: { title: string; due_date: string }[];
@@ -614,10 +622,22 @@ export async function executeAction(
           )
         : null;
 
+      // client : même fiche que dans le Workspace, pour que le projet suivant d'un client
+      // retrouve ses coordonnées sans les ressaisir
+      const client = p.client_name
+        ? await upsertClient({
+            name: p.client_name,
+            email: p.client_email,
+            phone: p.client_phone,
+            address: p.client_address,
+          })
+        : null;
+
       const row = await one<{ id: string; reference: string }>(
-        `insert into projects_pm(reference, name, description, category, client_name, status, priority,
-             due_date, budget_amount, budget_currency, owner_id, template_id)
-         values($1,$2,$3,$4,$5,'planning',$6,$7,$8,$9,$10,$11)
+        `insert into projects_pm(reference, name, description, category, client_name, client_id,
+             client_email, client_phone, client_address,
+             status, priority, due_date, budget_amount, budget_currency, owner_id, template_id)
+         values($1,$2,$3,$4,$5,$6,$7,$8,$9,'planning',$10,$11,$12,$13,$14,$15)
          returning id, reference`,
         [
           reference,
@@ -625,6 +645,10 @@ export async function executeAction(
           p.description,
           template?.category ?? null,
           p.client_name?.trim() || null,
+          client?.id ?? null,
+          p.client_email?.trim() || client?.email || null,
+          p.client_phone?.trim() || client?.phone || null,
+          p.client_address?.trim() || client?.address || null,
           p.priority,
           p.due_date ?? null,
           p.budget_amount ?? null,

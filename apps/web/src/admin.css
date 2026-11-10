@@ -269,3 +269,36 @@
   .chat-shell > aside { max-height: 34vh; }
   .chat-shell > section { height: 72vh; }
 }
+
+/* ------------------------------------------------------------------ bulle d'assistant */
+/* Bouton flottant présent sur tous les écrans de la console : un anneau respire
+   lentement pour signaler une présence, sans clignotement agressif. */
+.assistant-fab::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  border: 2px solid var(--brand);
+  opacity: 0;
+  animation: assistant-ring 3.6s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes assistant-ring {
+  0% { transform: scale(0.92); opacity: 0.45; }
+  70% { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.assistant-panel {
+  animation: assistant-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: bottom right;
+}
+@keyframes assistant-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-fab::after { animation: none; opacity: 0; }
+  .assistant-panel { animation: none; }
+}

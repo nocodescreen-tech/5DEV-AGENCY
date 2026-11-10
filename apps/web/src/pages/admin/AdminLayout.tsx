@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { apiDelete, apiGet, apiPost } from '../../lib/api';
 import ThemeToggle from '../../components/ThemeToggle';
+import { AssistantBubble } from '../../components/AssistantBubble';
 
 import { PageTransition } from '../../components/motion/PageTransition';
 import '../../admin.css';
@@ -373,6 +374,7 @@ export default function AdminLayout() {
           </div>
         </main>
       </div>
+      <AssistantBubble />
     </div>
   );
 }

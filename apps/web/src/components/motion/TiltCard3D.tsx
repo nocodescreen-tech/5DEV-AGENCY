@@ -62,7 +62,7 @@ export function TiltCard3D({
   }
 
   return (
-    <div className="t3d-scene" style={{ perspective: `${motionTokens.perspective}px` }}>
+    <div className="t3d-scene w-full" style={{ perspective: `${motionTokens.perspective}px` }}>
       <motion.div
         ref={ref}
         className={`t3d-card ${className}`}

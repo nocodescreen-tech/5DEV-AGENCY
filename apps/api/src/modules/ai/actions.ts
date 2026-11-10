@@ -150,6 +150,166 @@ export const ACTION_SPECS = {
     }),
     describe: (p: Record<string, unknown>) => `Passer la réservation en « ${p.status} »`,
   },
+  automation_create: {
+    label: 'Créer une automatisation',
+    schema: z.object({
+      name: z.string().min(2).max(120),
+      // déclencheur : un nouveau message dans « demandes » ou « réservations »
+      trigger: z.enum(['lead.created', 'booking.created']),
+      reply_subject: z.string().min(2).max(180).optional(),
+      reply_body: z.string().min(5).max(4000).optional(),
+      notify_admin: z.boolean().default(true),
+      is_active: z.boolean().default(true),
+    }),
+    describe: (p: Record<string, unknown>) => {
+      const quoi = p.trigger === 'booking.created' ? 'une nouvelle réservation' : 'une nouvelle demande';
+      const parts = [
+        p.notify_admin ? 'notification interne' : '',
+        p.reply_subject ? `réponse automatique « ${String(p.reply_subject)} »` : '',
+      ].filter(Boolean);
+      return `Créer l’automatisation « ${p.name} » sur ${quoi}${parts.length ? ` (${parts.join(' + ')})` : ''}`;
+    },
+  },
+  /* ---- CRUD des autres modules. Le PROJET est le seul sans suppression. ---- */
+  client_create: {
+    label: 'Créer une fiche client',
+    schema: z.object({
+      name: z.string().min(2).max(160),
+      company: z.string().max(160).optional(),
+      email: z.string().email().max(180).optional(),
+      phone: z.string().max(40).optional(),
+      address: z.string().max(300).optional(),
+      city: z.string().max(120).optional(),
+    }),
+    describe: (p: Record<string, unknown>) => `Créer la fiche client « ${p.name} »`,
+  },
+  client_update: {
+    label: 'Modifier une fiche client',
+    schema: z.object({
+      client_id: z.string().uuid(),
+      name: z.string().min(2).max(160).optional(),
+      company: z.string().max(160).nullable().optional(),
+      email: z.string().email().max(180).nullable().optional(),
+      phone: z.string().max(40).nullable().optional(),
+      address: z.string().max(300).nullable().optional(),
+      city: z.string().max(120).nullable().optional(),
+    }),
+    describe: (p: Record<string, unknown>) => `Mettre à jour la fiche client ${String(p.client_id).slice(0, 8)}`,
+  },
+  client_delete: {
+    label: 'Supprimer une fiche client',
+    schema: z.object({ client_id: z.string().uuid() }),
+    describe: () => 'Supprimer la fiche client (refusé si des projets y sont rattachés)',
+    sensitive: true,
+  },
+  service_create: {
+    label: 'Créer un service au catalogue',
+    schema: z.object({
+      title: z.string().min(2).max(120),
+      summary: z.string().max(400).default(''),
+      description: z.string().max(6000).default(''),
+      price_from_usd: z.number().nonnegative().nullable().optional(),
+      price_note: z.string().max(200).nullable().optional(),
+      duration_label: z.string().max(80).nullable().optional(),
+      is_published: z.boolean().default(true),
+    }),
+    describe: (p: Record<string, unknown>) => `Créer le service « ${p.title} »`,
+  },
+  service_update: {
+    label: 'Modifier un service',
+    schema: z.object({
+      service_id: z.string().uuid(),
+      title: z.string().min(2).max(120).optional(),
+      summary: z.string().max(400).optional(),
+      description: z.string().max(6000).optional(),
+      price_from_usd: z.number().nonnegative().nullable().optional(),
+      price_note: z.string().max(200).nullable().optional(),
+      duration_label: z.string().max(80).nullable().optional(),
+      is_published: z.boolean().optional(),
+    }),
+    describe: (p: Record<string, unknown>) => `Modifier le service ${String(p.service_id).slice(0, 8)}`,
+  },
+  service_delete: {
+    label: 'Supprimer un service',
+    schema: z.object({ service_id: z.string().uuid() }),
+    describe: () => 'Retirer le service du catalogue',
+    sensitive: true,
+  },
+  realization_create: {
+    label: 'Créer une réalisation',
+    schema: z.object({
+      title: z.string().min(2).max(140),
+      client_name: z.string().max(140).optional(),
+      year: z.number().int().min(2000).max(2100).optional(),
+      summary: z.string().max(400).default(''),
+      body: z.string().max(12000).default(''),
+      is_published: z.boolean().default(false),
+    }),
+    describe: (p: Record<string, unknown>) => `Créer la réalisation « ${p.title} »`,
+  },
+  realization_update: {
+    label: 'Modifier une réalisation',
+    schema: z.object({
+      realization_id: z.string().uuid(),
+      title: z.string().min(2).max(140).optional(),
+      client_name: z.string().max(140).nullable().optional(),
+      year: z.number().int().min(2000).max(2100).nullable().optional(),
+      summary: z.string().max(400).optional(),
+      body: z.string().max(12000).optional(),
+      is_published: z.boolean().optional(),
+    }),
+    describe: (p: Record<string, unknown>) => `Modifier la réalisation ${String(p.realization_id).slice(0, 8)}`,
+  },
+  realization_delete: {
+    label: 'Supprimer une réalisation',
+    schema: z.object({ realization_id: z.string().uuid() }),
+    describe: () => 'Retirer la réalisation du site',
+    sensitive: true,
+  },
+  task_update: {
+    label: 'Modifier une tâche',
+    schema: z.object({
+      task_id: z.string().uuid(),
+      title: z.string().min(2).max(200).optional(),
+      priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+      due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      description: z.string().max(8000).optional(),
+    }),
+    describe: (p: Record<string, unknown>) => `Modifier la tâche ${String(p.task_id).slice(0, 8)}`,
+  },
+  milestone_update: {
+    label: 'Modifier un jalon',
+    schema: z.object({
+      milestone_id: z.string().uuid(),
+      name: z.string().min(2).max(160).optional(),
+      due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    }),
+    describe: () => 'Modifier le jalon',
+  },
+  milestone_delete: {
+    label: 'Supprimer un jalon',
+    schema: z.object({ milestone_id: z.string().uuid() }),
+    describe: () => 'Supprimer le jalon',
+    sensitive: true,
+  },
+  note_delete: {
+    label: 'Supprimer une note de projet',
+    schema: z.object({ note_id: z.string().uuid() }),
+    describe: () => 'Supprimer la note',
+    sensitive: true,
+  },
+  automation_toggle: {
+    label: 'Activer ou suspendre une automatisation',
+    schema: z.object({ automation_id: z.string().uuid(), is_active: z.boolean() }),
+    describe: (p: Record<string, unknown>) =>
+      `${p.is_active ? 'Activer' : 'Suspendre'} l’automatisation ${String(p.automation_id).slice(0, 8)}`,
+  },
+  automation_delete: {
+    label: 'Supprimer une automatisation',
+    schema: z.object({ automation_id: z.string().uuid() }),
+    describe: () => 'Supprimer la règle et son historique',
+    sensitive: true,
+  },
   email_send: {
     label: 'Envoyer un email',
     schema: z.object({
@@ -190,7 +350,7 @@ export const READ_TOOLS = {
     }),
     run: async (p: Record<string, unknown>) =>
       all(
-        `select code, name, status, priority, due_date, budget_amount, budget_currency
+        `select id, reference, name, status, priority, due_date, budget_amount, budget_currency
            from projects_pm
           where deleted_at is null
             and ($1 = 'tous' or status = $1)
@@ -208,12 +368,12 @@ export const READ_TOOLS = {
     }),
     run: async (p: Record<string, unknown>) =>
       all(
-        `select t.title, t.status, t.priority, t.due_date, p.name as projet
+        `select t.id, t.title, t.status, t.priority, t.due_date, p.reference as projet_ref, p.name as projet
            from tasks t
            left join projects_pm p on p.id = t.project_id
           where t.deleted_at is null
             and ($1 = 'ouvertes' or t.status = $1)
-            and ($2::text is null or p.code ilike $2 or p.name ilike '%' || $2 || '%')
+            and ($2::text is null or p.reference ilike $2 or p.name ilike '%' || $2 || '%')
           order by t.due_date nulls last, t.created_at desc
           limit $3`,
         [String(p.statut ?? 'ouvertes'), p.projet ? String(p.projet) : null, Number(p.limite ?? 20)],
@@ -243,7 +403,7 @@ export const READ_TOOLS = {
     }),
     run: async (p: Record<string, unknown>) =>
       all(
-        `select reference, contact_name, contact_email, shoot_date, status, formula
+        `select id, reference, contact_name, contact_email, shoot_date, status, formula
            from bookings
           order by shoot_date desc
           limit $1`,
@@ -255,7 +415,7 @@ export const READ_TOOLS = {
     schema: z.object({}),
     run: async () =>
       all(
-        `select s.title, s.price_note, s.duration_label, c.name as categorie
+        `select s.id, s.slug, s.title, s.is_published, s.price_note, s.duration_label, c.name as categorie
            from services s
            left join service_categories c on c.id = s.category_id
           where s.is_published
@@ -304,6 +464,47 @@ export function actionsForPrompt(): string {
       return `- ${name}${shape.length ? ` (${shape.join(', ')})` : ' (aucun paramètre)'} : ${spec.label}`;
     })
     .join('\n');
+}
+
+type EditableTable = 'clients' | 'services' | 'projects' | 'tasks' | 'milestones' | 'automations';
+
+/** Met a jour une ligne en ne gardant que les champs reellement fournis par le modele. */
+async function patchRow(table: EditableTable, id: string, fields: Record<string, unknown>) {
+  const entries = Object.entries(fields).filter(([, v]) => v !== undefined);
+  if (!entries.length) throw new AppError(422, 'VALIDATION', 'Aucun champ a modifier.');
+  const touch = table === 'milestones' ? '' : ', updated_at=now()';
+  const sets = entries.map(([k], i) => `${k}=$${i + 2}`).join(', ');
+  const row = await one(`update ${table} set ${sets}${touch} where id=$1 returning id`, [
+    id,
+    ...entries.map(([, v]) => v),
+  ]);
+  if (!row) throw new AppError(404, 'NOT_FOUND', 'Element introuvable.');
+  return row;
+}
+
+/** Slug lisible a partir d'un titre (accents retires sans dependance). */
+function slugify(input: string): string {
+  // chaque caractere non ASCII est decompose (accents) ; tout ce qui n'est pas
+  // alphanumerique devient un tiret, puis les tirets multiples sont compresses
+  const plat = input
+    .toLowerCase()
+    .normalize('NFD')
+    .split('')
+    .map((c) => (/[a-z0-9]/.test(c) ? c : '-'))
+    .join('');
+  const slug = plat.replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 70);
+  return slug || `element-${Date.now()}`;
+}
+
+/** Slug unique : services et projects (realisations) ont une contrainte unique. */
+async function uniqueSlug(table: 'services' | 'projects', base: string): Promise<string> {
+  let slug = base;
+  for (let i = 0; i < 30; i++) {
+    const hit = await one(`select id from ${table} where slug=$1`, [slug]);
+    if (!hit) return slug;
+    slug = `${base}-${i + 2}`;
+  }
+  return `${base}-${Date.now()}`;
 }
 
 export type ActionName = keyof typeof ACTION_SPECS;
@@ -449,6 +650,13 @@ function normalize(name: string, params: Record<string, unknown>): Record<string
   if ('status' in out) {
     const mapped = STATUS_MAP[norm(out.status)];
     if (mapped) out.status = mapped;
+  }
+  if (name === 'automation_create' && 'trigger' in out) {
+    const t = norm(out.trigger);
+    // « réservation / réservations » arrive accentué : on teste les deux orthographes
+    if (t.includes('resa') || t.includes('résa') || t.includes('réserv') || t.includes('booking') || t.includes('rendez')) {
+      out.trigger = 'booking.created';
+    } else if (t.includes('demande') || t.includes('lead')) out.trigger = 'lead.created';
   }
   if (name === 'note_add' && 'kind' in out) {
     const mapped = NOTE_KIND_MAP[norm(out.kind)];
@@ -803,6 +1011,204 @@ export async function executeAction(
       await auditAction('booking_set_status', { booking_id: p.booking_id, status: p.status }, actorId, null);
       return { summary: `Réservation ${row.reference} passée en « ${p.status} »`, link: '/admin/reservations' };
     }
+    case 'automation_create': {
+      const p = params as {
+        name: string;
+        trigger: 'lead.created' | 'booking.created';
+        reply_subject?: string;
+        reply_body?: string;
+        notify_admin: boolean;
+        is_active: boolean;
+      };
+      // même forme que l'écran /admin/automatisations : déclencheur + liste d'actions
+      const actions: Record<string, unknown>[] = [];
+      if (p.notify_admin) {
+        actions.push({
+          type: 'notify_admin',
+          title: `Nouvelle ${p.trigger === 'booking.created' ? 'réservation' : 'demande'} — ${p.name}`,
+          body: 'Un message vient d’arriver. Ouvrez la liste pour répondre.',
+        });
+      }
+      if (p.reply_subject && p.reply_body) {
+        actions.push({ type: 'email_client', subject: p.reply_subject, body: p.reply_body });
+      }
+      if (!actions.length) {
+        throw new AppError(422, 'VALIDATION', 'Aucune action : activez la notification ou rédigez une réponse.');
+      }
+      const row = await one<{ id: string; name: string }>(
+        `insert into automations(name, trigger, conditions, actions, is_active)
+         values($1,$2,'[]'::jsonb,$3::jsonb,$4) returning id, name`,
+        [p.name, p.trigger, JSON.stringify(actions), p.is_active],
+      );
+      if (!row) throw new AppError(500, 'INTERNAL', 'Création de l’automatisation impossible.');
+      await auditAction('automation_create', { automation_id: row.id, trigger: p.trigger }, actorId, null);
+      return {
+        summary: `Automatisation « ${row.name} » créée sur ${p.trigger === 'booking.created' ? 'réservation' : 'demande'} (${actions.length} action${actions.length > 1 ? 's' : ''}).`,
+        link: '/admin/automatisations',
+      };
+    }
+
+    case 'client_create': {
+      const p = params as {
+        name: string; company?: string; email?: string; phone?: string; address?: string; city?: string;
+      };
+      await one(
+        `insert into clients(name, company, email, phone, address, city)
+         values($1,$2,$3,$4,$5,$6)
+         on conflict (lower(name)) do update set
+           company = coalesce(excluded.company, clients.company),
+           email   = coalesce(excluded.email, clients.email),
+           phone   = coalesce(excluded.phone, clients.phone),
+           address = coalesce(excluded.address, clients.address),
+           city    = coalesce(excluded.city, clients.city),
+           updated_at = now()`,
+        [
+          p.name.trim(),
+          p.company?.trim() || null,
+          p.email?.trim() || null,
+          p.phone?.trim() || null,
+          p.address?.trim() || null,
+          p.city?.trim() || null,
+        ],
+      );
+      return { summary: `Fiche client « ${p.name} » enregistree.`, link: '/admin/clients' };
+    }
+
+    case 'client_update': {
+      const champs = params as Record<string, unknown>;
+      const { client_id: clientId, ...rest } = champs;
+      await patchRow('clients', String(clientId), rest);
+      if (typeof rest.name === 'string') {
+        await one(
+          `update projects_pm set client_name=$2, updated_at=now()
+            where client_id=$1 and deleted_at is null`,
+          [clientId, rest.name],
+        );
+      }
+      return { summary: 'Fiche client mise a jour.', link: '/admin/clients' };
+    }
+
+    case 'client_delete': {
+      const { client_id: clientId } = params as { client_id: string };
+      const linked = await one<{ n: number }>(
+        `select count(*)::int as n from projects_pm where client_id=$1 and deleted_at is null`,
+        [clientId],
+      );
+      if (Number(linked?.n ?? 0) > 0) {
+        throw new AppError(409, 'CLIENT_LINKED', `Ce client a ${linked?.n} projet(s) : detachez-les d'abord.`);
+      }
+      const row = await one(`delete from clients where id=$1 returning id`, [clientId]);
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Client introuvable.');
+      return { summary: 'Fiche client supprimee.', link: '/admin/clients' };
+    }
+
+    case 'service_create': {
+      const p = params as {
+        title: string; summary: string; description: string;
+        price_from_usd?: number | null; price_note?: string | null;
+        duration_label?: string | null; is_published: boolean;
+      };
+      const slug = await uniqueSlug('services', slugify(p.title));
+      await one(
+        `insert into services(slug,title,summary,description,price_from_usd,price_note,duration_label,is_published)
+         values($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [slug, p.title, p.summary, p.description, p.price_from_usd ?? null, p.price_note ?? null, p.duration_label ?? null, p.is_published],
+      );
+      return { summary: `Service « ${p.title} » cree (${slug}).`, link: '/admin/services' };
+    }
+
+    case 'service_update': {
+      const { service_id: serviceId, ...rest } = params as Record<string, unknown>;
+      await patchRow('services', String(serviceId), rest);
+      return { summary: 'Service mis a jour.', link: '/admin/services' };
+    }
+
+    case 'service_delete': {
+      const { service_id: serviceId } = params as { service_id: string };
+      const row = await one(`delete from services where id=$1 returning title`, [serviceId]);
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Service introuvable.');
+      return { summary: 'Service retire du catalogue.', link: '/admin/services' };
+    }
+
+    case 'realization_create': {
+      const p = params as {
+        title: string; client_name?: string; year?: number;
+        summary: string; body: string; is_published: boolean;
+      };
+      const slug = await uniqueSlug('projects', slugify(p.title));
+      await one(
+        `insert into projects(slug,title,client_name,year,summary,body,is_published)
+         values($1,$2,$3,$4,$5,$6,$7)`,
+        [slug, p.title, p.client_name ?? null, p.year ?? null, p.summary, p.body, p.is_published],
+      );
+      return {
+        summary: `Realisation « ${p.title} » creee${p.is_published ? '' : ' (brouillon)'}.`,
+        link: '/admin/realisations',
+      };
+    }
+
+    case 'realization_update': {
+      const { realization_id: realizationId, ...rest } = params as Record<string, unknown>;
+      await patchRow('projects', String(realizationId), rest);
+      return { summary: 'Realisation mise a jour.', link: '/admin/realisations' };
+    }
+
+    case 'realization_delete': {
+      const { realization_id: realizationId } = params as { realization_id: string };
+      const row = await one(`delete from projects where id=$1 returning title`, [realizationId]);
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Realisation introuvable.');
+      return { summary: 'Realisation retiree du site.', link: '/admin/realisations' };
+    }
+
+    case 'task_update': {
+      const { task_id: taskId, ...rest } = params as Record<string, unknown>;
+      await patchRow('tasks', String(taskId), rest);
+      return { summary: 'Tache mise a jour.', link: '/admin/taches' };
+    }
+
+    case 'milestone_update': {
+      const { milestone_id: milestoneId, ...rest } = params as Record<string, unknown>;
+      await patchRow('milestones', String(milestoneId), rest);
+      return { summary: 'Jalon mis a jour.', link: '/admin/planning' };
+    }
+
+    case 'milestone_delete': {
+      const { milestone_id: milestoneId } = params as { milestone_id: string };
+      const row = await one<{ project_id: string }>(
+        `delete from milestones where id=$1 returning project_id`,
+        [milestoneId],
+      );
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Jalon introuvable.');
+      return { summary: 'Jalon supprime.', link: `/admin/projets/${row.project_id}` };
+    }
+
+    case 'note_delete': {
+      const { note_id: noteId } = params as { note_id: string };
+      const row = await one(`delete from project_notes where id=$1 returning id`, [noteId]);
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Note introuvable.');
+      return { summary: 'Note supprimee.' };
+    }
+
+    case 'automation_toggle': {
+      const p = params as { automation_id: string; is_active: boolean };
+      const row = await one<{ name: string }>(
+        `update automations set is_active=$2 where id=$1 returning name`,
+        [p.automation_id, p.is_active],
+      );
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Automatisation introuvable.');
+      return {
+        summary: `Automatisation « ${row.name} » ${p.is_active ? 'activee' : 'suspendue'}.`,
+        link: '/admin/automatisations',
+      };
+    }
+
+    case 'automation_delete': {
+      const { automation_id: automationId } = params as { automation_id: string };
+      const row = await one(`delete from automations where id=$1 returning name`, [automationId]);
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Automatisation introuvable.');
+      return { summary: 'Automatisation supprimee.', link: '/admin/automatisations' };
+    }
+
     case 'email_send': {
       const p = params as { to: string; subject: string; body: string };
       const res = await sendEmail({

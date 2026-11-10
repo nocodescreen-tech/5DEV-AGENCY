@@ -807,6 +807,14 @@ Règles des actions :
 - Reste court : description ≤ 2 phrases, note ≤ 4 phrases, **4 à 8 tâches maximum**, 2 à 3 jalons.
   Un JSON trop long est coupé en plein milieu et l'action est perdue : mieux vaut un projet
   juste avec 6 tâches qu'un roman tronqué.
+- Tu as un CRUD complet sur : clients, services, réalisations, tâches, jalons, notes de projet,
+  automatisations, demandes et réservations (statut, note, réponse). Sur les PROJETS : création,
+  changement de statut, étapes, tâches, jalons — mais **jamais de suppression** : si on te demande
+  de supprimer un projet, tu émets l'action project_set_status avec status "archived" (tu ne te
+  contentes pas d'expliquer), en rappelant que l'historique est conservé.
+- Les suppressions (service_delete, client_delete, realization_delete, task_delete,
+  milestone_delete, note_delete, automation_delete) sont sensibles : annonce précisément ce
+  qui disparaît, l'utilisateur confirme ensuite.
 - Pour les identifiants (project_id, task_id, lead_id) : lis d'abord la base avec un outil de
   lecture, ne les invente jamais.
 - Les dates s'écrivent AAAA-MM-JJ.
@@ -849,7 +857,8 @@ aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) =
     const steps: { tool: string; label: string; rows: number }[] = [];
     let answer = '';
 
-    for (let turn = 0; turn < 3; turn++) {
+    // 4 tours = jusqu'a 3 lectures + la reponse finale (sinon le modele n'a pas le temps)
+    for (let turn = 0; turn < 4; turn++) {
       const out = await chatOnce(model, messages, {
         temperature: Number(conv.temperature) || 0.4,
         // une action project_create avec ses tâches dépasse 900 tokens : coupée, elle serait
@@ -883,6 +892,21 @@ aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) =
       });
     }
 
+    // Le 3e tour peut se terminer sur une demande d'outil : sans ce tour de clôture,
+    // l'utilisateur recevait un bloc ```tool brut à la place d'une réponse.
+    if (extractToolCall(answer)) {
+      messages.push({ role: 'assistant', content: answer });
+      messages.push({
+        role: 'user',
+        content: 'Limite d’outils atteinte. Réponds maintenant en français avec ce que tu as, sans nouvel outil.',
+      });
+      const final = await chatOnce(model, messages, {
+        temperature: Number(conv.temperature) || 0.4,
+        maxTokens: 1200,
+      });
+      answer = final.text || answer;
+    }
+
     // une proposition d'action éventuelle reste à confirmer, jamais exécutée ici
     const extracted = extractAction(answer) ?? extractActionLoose(answer);
     let proposal: { name: string; params: Record<string, unknown>; label: string; sensitive: boolean } | null = null;
@@ -906,7 +930,7 @@ aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) =
       stripped ||
       (proposal
         ? `Action proposée : ${proposal.label}. Vérifiez les détails puis confirmez ci-dessous.`
-        : answer.trim());
+        : 'Réponse interrompue avant la conclusion. Relancez la question ou ouvrez directement la page concernée.');
 
     await one(
       `insert into ai_messages(conversation_id, role, content) values($1,'assistant',$2)`,

@@ -71,17 +71,29 @@ async function executeAction(action: Action, payload: Record<string, unknown>): 
     case 'email_client': {
       const to = String(payload.contact_email ?? payload.email ?? '');
       if (!to) return 'aucune adresse client — ignoré';
+      // jetons simples : un accusé de réception qui nomme le client ne s'écrit pas en dur
+      const fill = (text: string) =>
+        text
+          .replaceAll('{{name}}', String(payload.contact_name ?? 'vous'))
+          .replaceAll('{{email}}', to)
+          .replaceAll('{{message}}', String(payload.message ?? ''))
+          .replaceAll('{{reference}}', String(payload.reference ?? payload.id ?? ''));
+      const subject = fill(action.subject);
+      const body = fill(action.body);
       const res = await sendEmail({
         to,
-        subject: action.subject,
-        html: emailLayout({ title: action.subject, body: `<p>${action.body}</p>` }),
-        text: action.body,
+        subject,
+        // separateur de paragraphes : split/join, jamais un antislash-n genere par script
+        html: emailLayout({ title: subject, body: `<p>${body.split(String.fromCharCode(10)).join('</p><p>')}</p>` }),
+        text: body,
         context: 'automation',
       });
       if (!res.ok) throw new Error(res.error ?? 'envoi impossible');
       return `email envoyé à ${to}`;
     }
     case 'set_lead_status': {
+      // un déclencheur de test n'a pas d'uuid : on ne tente pas d'écrire sur une demande
+      if (!z.string().uuid().safeParse(payload.id).success) return 'déclencheur de test — écriture ignorée';
       await one(`update leads set status=$2, updated_at=now() where id=$1`, [payload.id, action.value]);
       return `statut → ${action.value}`;
     }

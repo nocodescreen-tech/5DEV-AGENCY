@@ -37,20 +37,36 @@ describe('extractAction', () => {
 });
 
 describe('liste blanche', () => {
-  it('expose les douze actions attendues', () => {
+  it('expose les vingt-huit actions attendues', () => {
     expect(Object.keys(ACTION_SPECS).sort()).toEqual([
+      'automation_create',
+      'automation_delete',
+      'automation_toggle',
       'booking_set_status',
+      'client_create',
+      'client_delete',
+      'client_update',
       'email_send',
       'lead_note',
       'lead_reply_email',
       'lead_set_status',
       'milestone_create',
+      'milestone_delete',
+      'milestone_update',
       'note_add',
+      'note_delete',
       'project_create',
       'project_set_status',
+      'realization_create',
+      'realization_delete',
+      'realization_update',
+      'service_create',
+      'service_delete',
+      'service_update',
       'task_create',
       'task_delete',
       'task_set_status',
+      'task_update',
     ]);
   });
 
@@ -188,5 +204,71 @@ describe('robustesse des synonymes de priorité', () => {
     const params = r.params as { priority: string; tasks: { priority: string }[] };
     expect(params.priority).toBe('normal');
     expect(params.tasks[0]?.priority).toBe('normal');
+  });
+});
+
+describe('automatisation proposee par l’assistant', () => {
+  it('accepte un déclencheur et une réponse type', () => {
+    const r = describeAction('automation_create', {
+      name: 'Accusé de réception des demandes',
+      trigger: 'demandes',
+      reply_subject: 'Nous avons reçu votre demande',
+      reply_body: 'Bonjour {{name}}, votre message est arrivé. On vous répond dans la journée.',
+    });
+    const params = r.params as { trigger: string; notify_admin: boolean; is_active: boolean };
+    expect(params.trigger).toBe('lead.created');
+    expect(params.notify_admin).toBe(true);
+    expect(params.is_active).toBe(true);
+    expect(r.label).toContain('nouvelle demande');
+    expect(r.label).toContain('réponse automatique');
+  });
+
+  it('traduit « réservation » en booking.created', () => {
+    const r = describeAction('automation_create', { name: 'Réservation', trigger: 'réservations' });
+    expect((r.params as { trigger: string }).trigger).toBe('booking.created');
+    expect(r.label).toContain('nouvelle réservation');
+  });
+});
+
+describe('CRUD des autres modules', () => {
+  it('aucune action ne supprime un projet', () => {
+    // consigne client : l’IA a des CRUD partout, sauf la suppression de projet
+    expect(Object.keys(ACTION_SPECS).some((n) => n.startsWith('project_delete'))).toBe(false);
+    expect(Object.keys(ACTION_SPECS).some((n) => n.includes('project') && n.includes('delete'))).toBe(false);
+  });
+
+  it('expose create / update / delete pour services, clients et réalisations', () => {
+    for (const base of ['service', 'client', 'realization']) {
+      expect(isActionName(`${base}_create`)).toBe(true);
+      expect(isActionName(`${base}_update`)).toBe(true);
+      expect(isActionName(`${base}_delete`)).toBe(true);
+    }
+    expect(isActionName('task_update')).toBe(true);
+    expect(isActionName('milestone_update')).toBe(true);
+    expect(isActionName('milestone_delete')).toBe(true);
+    expect(isActionName('note_delete')).toBe(true);
+    expect(isActionName('automation_toggle')).toBe(true);
+    expect(isActionName('automation_delete')).toBe(true);
+  });
+
+  it('marque les suppressions comme sensibles', () => {
+    for (const n of ['client_delete', 'service_delete', 'realization_delete', 'milestone_delete', 'note_delete', 'automation_delete', 'task_delete']) {
+      const cible =
+        n === 'client_delete' ? { client_id: '0b8f2a5e-1c1d-4d3e-9f8a-2b3c4d5e6f70' }
+        : n === 'service_delete' ? { service_id: '0b8f2a5e-1c1d-4d3e-9f8a-2b3c4d5e6f70' }
+        : n === 'realization_delete' ? { realization_id: '0b8f2a5e-1c1d-4d3e-9f8a-2b3c4d5e6f70' }
+        : n === 'milestone_delete' ? { milestone_id: '0b8f2a5e-1c1d-4d3e-9f8a-2b3c4d5e6f70' }
+        : n === 'note_delete' ? { note_id: '0b8f2a5e-1c1d-4d3e-9f8a-2b3c4d5e6f70' }
+        : n === 'automation_delete' ? { automation_id: '0b8f2a5e-1c1d-4d3e-9f8a-2b3c4d5e6f70' }
+        : { task_id: '0b8f2a5e-1c1d-4d3e-9f8a-2b3c4d5e6f70' };
+      expect(describeAction(n, cible).sensitive).toBe(true);
+    }
+  });
+
+  it('valide les champs d’un service et d’une réalisation', () => {
+    const s = describeAction('service_create', { title: 'Site vitrine', price_from_usd: 1200 });
+    expect((s.params as { slug?: string }).title).toBe('Site vitrine');
+    const r = describeAction('realization_create', { title: 'Boutique Kongo', year: 2026 });
+    expect(r.label).toContain('Boutique Kongo');
   });
 });

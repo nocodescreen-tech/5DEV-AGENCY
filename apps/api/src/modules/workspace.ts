@@ -156,14 +156,148 @@ workspaceRouter.get('/admin/pm/clients', requireAdmin, async (req, res, next) =>
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const rows = await all(
       `select c.*,
-              (select count(*) from projects_pm p where p.client_id=c.id and p.deleted_at is null)::int as projets
+              (select count(*) from projects_pm p where p.client_id=c.id and p.deleted_at is null)::int as projets,
+              coalesce((
+                select json_agg(x order by x.created_at desc)
+                  from (
+                    select p.id, p.reference, p.name, p.status, p.priority, p.due_date, p.created_at,
+                           coalesce(pr.progress,0) as progress,
+                           (select count(*) from tasks t where t.project_id=p.id and t.deleted_at is null)::int as tasks_total,
+                           (select count(*) from tasks t where t.project_id=p.id and t.status='done' and t.deleted_at is null)::int as tasks_done
+                      from projects_pm p
+                      left join lateral (
+                        select round(100.0 * count(*) filter (where t.status='done') / greatest(count(*),1)) as progress
+                          from tasks t where t.project_id=p.id and t.deleted_at is null
+                      ) pr on true
+                     where p.client_id = c.id and p.deleted_at is null
+                     order by p.created_at desc
+                     limit 20
+                  ) x
+              ), '[]'::json) as proj_list
          from clients c
-        where ($1 = '' or c.name ilike '%' || $1 || '%' or coalesce(c.company,'') ilike '%' || $1 || '%')
+        where ($1 = '' or c.name ilike '%' || $1 || '%' or coalesce(c.company,'') ilike '%' || $1 || '%'
+               or coalesce(c.email,'') ilike '%' || $1 || '%')
         order by c.name
-        limit 50`,
+        limit 100`,
       [q],
     );
     res.json({ ok: true, data: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const clientSchema = z.object({
+  name: z.string().min(2).max(160),
+  company: z.string().max(160).nullable().optional(),
+  email: z.string().email().max(180).nullable().optional(),
+  phone: z.string().max(40).nullable().optional(),
+  address: z.string().max(300).nullable().optional(),
+  city: z.string().max(120).nullable().optional(),
+  notes: z.string().max(4000).nullable().optional(),
+});
+
+workspaceRouter.get('/admin/pm/clients/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const client = await one(`select * from clients where id=$1`, [String(req.params.id)]);
+    if (!client) throw new AppError(404, 'NOT_FOUND', 'Client introuvable.');
+    const projects = await all(
+      `select p.id, p.reference, p.name, p.status, p.priority, p.due_date, p.budget_amount, p.budget_currency,
+              coalesce(pr.progress,0) as progress,
+              (select count(*) from tasks t where t.project_id=p.id and t.deleted_at is null)::int as tasks_total,
+              (select count(*) from tasks t where t.project_id=p.id and t.status='done' and t.deleted_at is null)::int as tasks_done
+         from projects_pm p
+         left join lateral (
+           select round(100.0 * count(*) filter (where t.status='done') / greatest(count(*),1)) as progress
+             from tasks t where t.project_id=p.id and t.deleted_at is null
+         ) pr on true
+        where p.client_id=$1 and p.deleted_at is null
+        order by p.created_at desc`,
+      [String(req.params.id)],
+    );
+    res.json({ ok: true, data: { client, projects } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+workspaceRouter.post('/admin/pm/clients', requireAdmin, validate(clientSchema), async (req, res, next) => {
+  try {
+    const c = req.body as z.infer<typeof clientSchema>;
+    const row = await one(
+      `insert into clients(name, company, email, phone, address, city, notes)
+       values($1,$2,$3,$4,$5,$6,$7)
+       on conflict (lower(name)) do nothing
+       returning *`,
+      [
+        c.name.trim(),
+        c.company?.trim() || null,
+        c.email?.trim() || null,
+        c.phone?.trim() || null,
+        c.address?.trim() || null,
+        c.city?.trim() || null,
+        c.notes?.trim() || null,
+      ],
+    );
+    if (!row) throw new AppError(409, 'CLIENT_EXISTS', 'Un client porte déjà ce nom.');
+    res.status(201).json({ ok: true, data: row });
+  } catch (err) {
+    next(err);
+  }
+});
+
+workspaceRouter.patch(
+  '/admin/pm/clients/:id',
+  requireAdmin,
+  validate(clientSchema.partial()),
+  async (req, res, next) => {
+    try {
+      const c = req.body as Partial<z.infer<typeof clientSchema>>;
+      const keys = Object.keys(c);
+      if (!keys.length) throw new AppError(422, 'VALIDATION', 'Aucun champ à modifier.');
+      // le renommage doit rester unique
+      if (typeof c.name === 'string') {
+        const clash = await one<{ id: string }>(
+          `select id from clients where lower(name)=lower($1) and id<>$2`,
+          [c.name.trim(), String(req.params.id)],
+        );
+        if (clash) throw new AppError(409, 'CLIENT_EXISTS', 'Un autre client porte déjà ce nom.');
+      }
+      const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+      const row = await one(
+        `update clients set ${sets}, updated_at=now() where id=$1 returning *`,
+        [String(req.params.id), ...keys.map((k) => (c as Record<string, unknown>)[k])],
+      );
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Client introuvable.');
+      // le nom du client est recopié sur ses projets (affichage des cartes et fiches)
+      if (typeof c.name === 'string') {
+        await one(`update projects_pm set client_name=$2, updated_at=now() where client_id=$1 and deleted_at is null`, [
+          String(req.params.id),
+          c.name.trim(),
+        ]);
+      }
+      res.json({ ok: true, data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+workspaceRouter.delete('/admin/pm/clients/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const linked = await one<{ n: number }>(
+      `select count(*)::int as n from projects_pm where client_id=$1 and deleted_at is null`,
+      [id],
+    );
+    const count = Number(linked?.n ?? 0);
+    // un client avec des projets ne se supprime pas : on perdrait le lien 1..n
+    if (count > 0) {
+      throw new AppError(409, 'CLIENT_LINKED', `Ce client a ${count} projet(s) : détachez-les d’abord.`);
+    }
+    const row = await one(`delete from clients where id=$1 returning id`, [id]);
+    if (!row) throw new AppError(404, 'NOT_FOUND', 'Client introuvable.');
+    res.json({ ok: true, data: { deleted: true } });
   } catch (err) {
     next(err);
   }
@@ -175,6 +309,7 @@ const projectSchema = z.object({
   category: z
     .enum(['dev-web', 'app-web', 'photo', 'marketing', 'infra', 'interne', 'recherche'])
     .default('dev-web'),
+  client_id: z.string().uuid().nullable().optional(),
   client_name: z.string().max(160).nullable().optional(),
   client_email: z.string().email().max(180).nullable().optional(),
   client_phone: z.string().max(40).nullable().optional(),
@@ -229,16 +364,31 @@ workspaceRouter.post('/admin/pm/projects', requireAdmin, validate(projectSchema)
   try {
     const p = req.body as z.infer<typeof projectSchema>;
 
-    // le client est identifié par son nom : sa fiche (email, téléphone, adresse) est reprise
-    // au projet suivant, et complétée ici si le formulaire apporte une coordonnée nouvelle.
-    const client = p.client_name?.trim()
-      ? await upsertClient({
-          name: p.client_name,
-          email: p.client_email,
-          phone: p.client_phone,
-          address: p.client_address,
-        })
+    // Le client peut venir de deux côtés : un client_id choisi dans une liste (page Clients,
+    // sélecteur de la fiche projet) ou un nom saisi librement, qui crée/complète la fiche.
+    const chosen = p.client_id
+      ? await one<{ id: string; name: string; email: string | null; phone: string | null; address: string | null }>(
+          `select id, name, email, phone, address from clients where id=$1`,
+          [p.client_id],
+        )
       : null;
+    if (p.client_id && !chosen) throw new AppError(404, 'NOT_FOUND', 'Client introuvable.');
+    const client = chosen
+      ? await upsertClient({
+          name: chosen.name,
+          email: p.client_email ?? chosen.email,
+          phone: p.client_phone ?? chosen.phone,
+          address: p.client_address ?? chosen.address,
+        })
+      : p.client_name?.trim()
+        ? await upsertClient({
+            name: p.client_name,
+            email: p.client_email,
+            phone: p.client_phone,
+            address: p.client_address,
+          })
+        : null;
+    const nomClient = chosen?.name ?? p.client_name ?? null;
     const contact = {
       email: p.client_email?.trim() || client?.email || null,
       phone: p.client_phone?.trim() || client?.phone || null,
@@ -261,7 +411,7 @@ workspaceRouter.post('/admin/pm/projects', requireAdmin, validate(projectSchema)
         p.name,
         p.description,
         p.category,
-        p.client_name || null,
+        nomClient,
         client?.id ?? null,
         contact.email,
         contact.phone,
@@ -376,6 +526,26 @@ workspaceRouter.patch(
   async (req, res, next) => {
     try {
       const p = req.body as Partial<z.infer<typeof projectSchema>>;
+
+      // lien direct projet → client (sélecteur) : le client fournit nom et coordonnées
+      if ('client_id' in p) {
+        if (p.client_id === null) {
+          (p as Record<string, unknown>).client_id = null;
+        } else if (p.client_id) {
+          const linked = await one<{
+            id: string;
+            name: string;
+            email: string | null;
+            phone: string | null;
+            address: string | null;
+          }>(`select id, name, email, phone, address from clients where id=$1`, [p.client_id]);
+          if (!linked) throw new AppError(404, 'NOT_FOUND', 'Client introuvable.');
+          (p as Record<string, unknown>).client_name = p.client_name ?? linked.name;
+          (p as Record<string, unknown>).client_email = p.client_email ?? linked.email;
+          (p as Record<string, unknown>).client_phone = p.client_phone ?? linked.phone;
+          (p as Record<string, unknown>).client_address = p.client_address ?? linked.address;
+        }
+      }
 
       // coordonnées client modifiées → on met à jour la fiche client partagée et le lien
       if (['client_name', 'client_email', 'client_phone', 'client_address'].some((k) => k in p)) {

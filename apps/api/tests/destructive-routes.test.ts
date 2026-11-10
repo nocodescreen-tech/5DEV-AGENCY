@@ -81,3 +81,22 @@ describe('nouvelles routes — session obligatoire', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('clients — session obligatoire', () => {
+  const id = '00000000-0000-4000-8000-000000000000';
+
+  it('DELETE /admin/pm/clients/:id sans session → 401', async () => {
+    const res = await request(app).delete(`/api/v1/admin/pm/clients/${id}`);
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /admin/pm/clients sans session → 401', async () => {
+    const res = await request(app).post('/api/v1/admin/pm/clients').send({ name: 'Test' });
+    expect(res.status).toBe(401);
+  });
+
+  it('PATCH /admin/pm/clients/:id sans session → 401', async () => {
+    const res = await request(app).patch(`/api/v1/admin/pm/clients/${id}`).send({ name: 'Test' });
+    expect(res.status).toBe(401);
+  });
+});

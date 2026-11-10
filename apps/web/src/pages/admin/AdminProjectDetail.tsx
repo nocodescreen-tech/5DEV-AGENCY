@@ -35,6 +35,7 @@ type Detail = {
     status: string;
     priority: string;
     category: string;
+    client_id: string | null;
     client_name: string | null;
     client_email: string | null;
     client_phone: string | null;
@@ -88,6 +89,7 @@ export default function AdminProjectDetail() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
+    client_id: '',
     client_name: '',
     client_email: '',
     client_phone: '',
@@ -99,6 +101,14 @@ export default function AdminProjectDetail() {
     budget_amount: '',
     description: '',
     objectives: '',
+  });
+
+  const { data: clients } = useQuery({
+    queryKey: ['pm-clients'],
+    queryFn: () => apiGet<{ id: string; name: string; email: string | null; phone: string | null; address: string | null }[]>(
+      '/api/v1/admin/pm/clients',
+    ),
+    staleTime: 60_000,
   });
 
   const { data, isPending, isError } = useQuery({
@@ -128,6 +138,7 @@ export default function AdminProjectDetail() {
     mutationFn: () =>
       apiPatch(`/api/v1/admin/pm/projects/${id}`, {
         name: editForm.name,
+        client_id: editForm.client_id || null,
         client_name: editForm.client_name || null,
         client_email: editForm.client_email || null,
         client_phone: editForm.client_phone || null,
@@ -282,6 +293,14 @@ export default function AdminProjectDetail() {
             {p.due_date ? ` · échéance ${frDate(p.due_date)}` : ''}
             {p.budget_amount ? ` · budget ${Number(p.budget_amount).toLocaleString('fr-FR')} ${p.budget_currency}` : ''}
           </p>
+          {p.client_id && (
+            <Link
+              to={`/admin/clients#client-${p.client_id}`}
+              className="mt-1 inline-block text-[11px] font-medium text-brand hover:underline"
+            >
+              Fiche client : coordonnées, projets liés →
+            </Link>
+          )}
           {(p.client_email || p.client_phone || p.client_address) && (
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               {p.client_email && (
@@ -306,6 +325,7 @@ export default function AdminProjectDetail() {
             onClick={() => {
               setEditForm({
                 name: p.name,
+                client_id: p.client_id ?? '',
                 client_name: p.client_name ?? '',
                 client_email: p.client_email ?? '',
                 client_phone: p.client_phone ?? '',
@@ -388,6 +408,39 @@ export default function AdminProjectDetail() {
             <div className="lg:col-span-2">
               <label className="label" htmlFor="e-name">Nom</label>
               <input id="e-name" className="field" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="e-client-id">
+                Client rattaché
+              </label>
+              <select
+                id="e-client-id"
+                className="field"
+                value={editForm.client_id}
+                onChange={(e) => {
+                  const idc = e.target.value;
+                  const c = (clients ?? []).find((x) => x.id === idc);
+                  setEditForm({
+                    ...editForm,
+                    client_id: idc,
+                    client_name: c?.name ?? editForm.client_name,
+                    client_email: c?.email ?? editForm.client_email,
+                    client_phone: c?.phone ?? editForm.client_phone,
+                    client_address: c?.address ?? editForm.client_address,
+                  });
+                }}
+              >
+                <option value="">— aucun (projet interne) —</option>
+                {(clients ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.email ? ` · ${c.email}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-muted">
+                Choisir un client remplit ses coordonnées ; le vider détache le projet sans supprimer la fiche.
+              </p>
             </div>
             <div>
               <label className="label" htmlFor="e-client">Client</label>

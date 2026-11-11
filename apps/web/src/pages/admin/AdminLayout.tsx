@@ -8,6 +8,10 @@ import {
   CalendarDays,
   CheckCheck,
   BarChart3,
+  Container,
+  Tag,
+  KeySquare,
+  UserCog,
   ChevronsLeft,
   ChevronsRight,
   FolderKanban,
@@ -93,6 +97,15 @@ const GROUPS: NavGroup[] = [
   {
     title: 'Analyse',
     items: [{ to: '/admin/analytique', label: 'Rapports', icon: BarChart3, end: true }],
+  },
+  {
+    title: 'Gestion',
+    items: [
+      { to: '/admin/utilisateurs', label: 'Comptes', icon: UserCog },
+      { to: '/admin/cles', label: 'Coffre de clés', icon: KeySquare },
+      { to: '/admin/dev', label: 'Machine & Docker', icon: Container },
+      { to: '/admin/marche', label: 'Prix du marché', icon: Tag },
+    ],
   },
   { title: 'Marketing', items: [{ to: '/admin/newsletter', label: 'Newsletter', icon: Send }] },
   { title: 'Communication', items: [{ to: '/admin/emails', label: 'Emails', icon: Mails }] },

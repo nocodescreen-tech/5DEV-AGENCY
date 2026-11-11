@@ -537,94 +537,125 @@ aiChatRouter.post('/admin/ai/models/sync', requireAdmin, async (_req, res) => {
 
 /* ------------------------------------------------------- page admin : projets GitHub */
 
-interface GitHubRepo {
-  id: number;
-  name: string;
-  full_name: string;
-  private: boolean;
-  html_url: string;
-  description: string | null;
-  updated_at: string;
-  pushed_at: string;
-  stargazers_count: number;
-  language: string | null;
+
+
+async function githubFetch<T>(apiPath: string, token: string): Promise<T> {
+  const response = await fetch(`https://api.github.com${apiPath}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': '5dev-console',
+    },
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { message?: string };
+    throw new AppError(response.status, 'GITHUB_API', body.message || `GitHub a répondu ${response.status}`);
+  }
+  return response.json() as Promise<T>;
 }
 
-interface WorkflowRun {
-  id: number;
-  name: string;
-  head_branch: string;
-  head_sha: string;
-  status: 'queued' | 'in_progress' | 'completed';
-  conclusion: 'success' | 'failure' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null;
-  created_at: string;
-  updated_at: string;
-  html_url: string;
-  repository: { full_name: string };
-}
-
-
-aiChatRouter.get('/admin/pages', requireAdmin, async (req, res, next) => {
+/**
+ * Dépôts et exécutions d'Actions du compte GitHub relié.
+ *
+ * Le jeton vient du coffre (`github_token`, chiffré en base) et, à défaut, de
+ * l'environnement. Sans jeton, la route ne simule RIEN : elle renvoie une liste
+ * vide et une phrase qui dit où enregistrer la clé. Un jeton refusé par GitHub
+ * remonte tel quel (401/403) au lieu d'être masqué en « aucun dépôt ».
+ */
+aiChatRouter.get('/admin/github', requireAdmin, async (_req, res, next) => {
   try {
-    // Récupérer le token GitHub depuis les secrets ou l'environnement
-    const { hint } = await secretInfo('github_token');
-    const token = process.env.GITHUB_TOKEN || (hint ? 'configured' : '');
-    
-    if (!token || token === 'configured') {
-      // Si le token est en base, on doit le lire via readSecret (pas secretInfo)
-      // Pour l'instant on renvoie une structure vide avec indication
+    const token = (await readSecret('github_token').catch(() => null)) ?? process.env.GITHUB_TOKEN ?? null;
+
+    if (!token) {
       res.json({
         ok: true,
         data: {
           repos: [],
-          workflows: [],
           runs: [],
-          message: 'Token GitHub non configuré. Ajoutez-le dans Console → IA & modèles → Clés secrètes (clé: github_token).',
+          stats: { total_repos: 0, recent_runs: 0, failed_runs: 0 },
+          message: 'Aucun jeton GitHub. Ajoutez la clé github_token dans Gestion → Coffre de clés.',
         },
       });
       return;
     }
 
-    // Pour la démo, on simule si pas de vrai token
-    // En production, décommentez le bloc ci-dessous et commentez la simulation
-    
-    // const user = await fetchGitHub('/user', token);
-    // const repos = await fetchGitHub('/user/repos?sort=pushed&per_page=20', token) as GitHubRepo[];
-    // const runs = await fetchGitHub('/repos/OWNER/REPO/actions/runs?per_page=10', token) as { workflow_runs: WorkflowRun[] };
-    
-    // Simulation pour structure de réponse
-    const repos: GitHubRepo[] = [];
-    const runs: WorkflowRun[] = [];
+    type RawRepo = {
+      id: number;
+      name: string;
+      full_name: string;
+      private: boolean;
+      html_url: string;
+      description: string | null;
+      updated_at: string;
+      pushed_at: string;
+      stargazers_count: number;
+      language: string | null;
+    };
+
+    const raw = await githubFetch<RawRepo[]>(
+      '/user/repos?sort=pushed&direction=desc&per_page=20&affiliation=owner,collaborator,organization_member',
+      token,
+    );
+
+    const repos = raw.map((r) => ({
+      id: r.id,
+      name: r.name,
+      full_name: r.full_name,
+      private: r.private,
+      url: r.html_url,
+      description: r.description,
+      updated_at: r.updated_at,
+      pushed_at: r.pushed_at,
+      stars: r.stargazers_count,
+      language: r.language,
+    }));
+
+    // Exécutions d'Actions des cinq dépôts les plus récemment poussés :
+    // une requête par dépôt, en parallèle, les erreurs d'un dépôt n'annulent pas le reste.
+    type RawRun = {
+      id: number;
+      name: string;
+      head_branch: string;
+      status: 'queued' | 'in_progress' | 'completed';
+      conclusion: 'success' | 'failure' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null;
+      created_at: string;
+      html_url: string;
+      repository: { full_name: string };
+    };
+
+    const perRepo = await Promise.all(
+      repos.slice(0, 5).map((r) =>
+        githubFetch<{ workflow_runs: RawRun[] }>(`/repos/${r.full_name}/actions/runs?per_page=5`, token)
+          .then((x) => x.workflow_runs ?? [])
+          .catch(() => [] as RawRun[]),
+      ),
+    );
+
+    const runs = perRepo
+      .flat()
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      .slice(0, 12)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        repo: r.repository.full_name,
+        branch: r.head_branch,
+        status: r.status,
+        conclusion: r.conclusion,
+        created_at: r.created_at,
+        url: r.html_url,
+      }));
 
     res.json({
       ok: true,
       data: {
-        repos: repos.map(r => ({
-          id: r.id,
-          name: r.name,
-          full_name: r.full_name,
-          private: r.private,
-          url: r.html_url,
-          description: r.description,
-          updated_at: r.updated_at,
-          pushed_at: r.pushed_at,
-          stars: r.stargazers_count,
-          language: r.language,
-        })),
-        runs: runs.map(r => ({
-          id: r.id,
-          name: r.name,
-          repo: r.repository.full_name,
-          branch: r.head_branch,
-          status: r.status,
-          conclusion: r.conclusion,
-          created_at: r.created_at,
-          url: r.html_url,
-        })),
+        repos,
+        runs,
         stats: {
           total_repos: repos.length,
           recent_runs: runs.length,
-          failed_runs: runs.filter(r => r.conclusion === 'failure').length,
+          failed_runs: runs.filter((r) => r.conclusion === 'failure').length,
         },
       },
     });
@@ -961,6 +992,11 @@ exactement ce bloc JSON, seul sur sa ligne :
 
 Outils de lecture disponibles :
 __TOOLS__
+
+read_leads accepte le parametre plus_vieux_que_heures : pour une question du type « en attente
+depuis plus de 48 heures », appelle-le avec plus_vieux_que_heures = 48. Ne calcule pas les dates
+toi-meme, et n'invente jamais un manque d'acces : si l'outil renvoie 0 ligne, dis simplement
+qu'aucune demande ne depasse ce delai (la colonne age_heures le prouve).
 
 Après le résultat, tu continues ta réponse normalement. Tu peux enchaîner plusieurs lectures
 (maximum 3).

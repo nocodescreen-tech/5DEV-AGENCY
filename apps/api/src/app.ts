@@ -14,6 +14,9 @@ import { workspaceRouter } from './modules/workspace.js';
 import { workspacePlanRouter } from './modules/workspace-plan.js';
 import { aiChatRouter } from './modules/ai-chat.js';
 import { profileRouter } from './modules/profile.js';
+import { adminConsoleRouter } from './modules/admin-console.js';
+import { credentialsRouter } from './modules/credentials.js';
+import { marketRouter } from './modules/market.js';
 import { errorHandler, notFound } from './middlewares/errors.js';
 import { corsAllowlist, securityHeaders } from './middlewares/security.js';
 import { currentUser } from './lib/session.js';
@@ -57,6 +60,9 @@ export function createApp(): Express {
   app.use('/api/v1', workspacePlanRouter);
   app.use('/api/v1', aiChatRouter);
   app.use('/api/v1', profileRouter);
+  app.use('/api/v1', adminConsoleRouter);
+  app.use('/api/v1', credentialsRouter);
+  app.use('/api/v1', marketRouter);
   app.use(healthRouter); // /healthz à la racine pour les sondes d'hébergeur
 
   app.use(notFound);

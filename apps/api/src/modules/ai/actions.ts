@@ -418,8 +418,8 @@ export const READ_TOOLS = {
   read_projects: {
     label: 'Lister les projets',
     schema: z.object({
-      statut: z.enum(['planning', 'active', 'paused', 'blocked', 'done', 'archived', 'tous']).default('tous'),
-      limite: z.number().int().min(1).max(30).default(12),
+      statut: z.string().default('tous'),
+      limite: z.coerce.number().int().min(1).max(30).default(12),
     }),
     run: async (p: Record<string, unknown>) =>
       all(
@@ -429,15 +429,15 @@ export const READ_TOOLS = {
             and ($1 = 'tous' or status = $1)
           order by created_at desc
           limit $2`,
-        [String(p.statut ?? 'tous'), Number(p.limite ?? 12)],
+        [toStatus(p.statut, PROJECT_STATUS, 'tous'), Number(p.limite ?? 12)],
       ),
   },
   read_tasks: {
     label: 'Lister les tâches',
     schema: z.object({
-      statut: z.enum(['todo', 'doing', 'review', 'blocked', 'done', 'ouvertes']).default('ouvertes'),
-      projet: z.string().max(40).optional(),
-      limite: z.number().int().min(1).max(40).default(20),
+      statut: z.string().default('ouvertes'),
+      projet: z.string().max(80).optional(),
+      limite: z.coerce.number().int().min(1).max(40).default(20),
     }),
     run: async (p: Record<string, unknown>) =>
       all(
@@ -449,30 +449,42 @@ export const READ_TOOLS = {
             and ($2::text is null or p.reference ilike $2 or p.name ilike '%' || $2 || '%')
           order by t.due_date nulls last, t.created_at desc
           limit $3`,
-        [String(p.statut ?? 'ouvertes'), p.projet ? String(p.projet) : null, Number(p.limite ?? 20)],
+        [toStatus(p.statut, TASK_STATUS, 'ouvertes'), p.projet ? String(p.projet) : null, Number(p.limite ?? 20)],
       ),
   },
   read_leads: {
-    label: 'Lister les demandes',
+    label: 'Lister les demandes (statut, ancienneté en heures)',
     schema: z.object({
-      statut: z.enum(['new', 'contacted', 'quoted', 'won', 'lost', 'tous']).default('tous'),
-      limite: z.number().int().min(1).max(30).default(12),
+      statut: z.string().default('tous'),
+      limite: z.coerce.number().int().min(1).max(30).default(12),
+      /** ne garder que les demandes créées il y a plus de N heures */
+      plus_vieux_que_heures: z.coerce.number().int().min(0).max(8760).optional(),
     }),
-    run: async (p: Record<string, unknown>) =>
-      all(
+    run: async (p: Record<string, unknown>) => {
+      const statut = toStatus(p.statut, LEAD_STATUS, 'tous');
+      const limite = toInt(p.limite, 12, 1, 30);
+      const ageMin =
+        p.plus_vieux_que_heures === undefined || p.plus_vieux_que_heures === null || p.plus_vieux_que_heures === ''
+          ? null
+          : toInt(p.plus_vieux_que_heures, 0, 0, 8760);
+
+      return all(
         `select id, kind, contact_name, contact_email, status, created_at,
+                round(extract(epoch from now() - created_at) / 3600)::int as age_heures,
                 left(message, 240) as message
            from leads
           where ($1 = 'tous' or status = $1)
-          order by created_at desc
-          limit $2`,
-        [String(p.statut ?? 'tous'), Number(p.limite ?? 12)],
-      ),
+            and ($2::int is null or created_at < now() - ($2::int || ' hours')::interval)
+          order by created_at asc
+          limit $3`,
+        [statut, ageMin, limite],
+      );
+    },
   },
   read_bookings: {
     label: 'Lister les réservations',
     schema: z.object({
-      limite: z.number().int().min(1).max(30).default(10),
+      limite: z.coerce.number().int().min(1).max(30).default(10),
     }),
     run: async (p: Record<string, unknown>) =>
       all(
@@ -592,12 +604,105 @@ export function isReadToolName(v: string): v is ReadToolName {
 }
 
 /** Exécute un outil de lecture. Toute erreur de validation est transformée en message clair. */
+/* --------------------------------------------------- tolérance des paramètres
+ * Le modèle écrit rarement les valeurs exactes attendues : « en attente »,
+ * « nouvelle », un nombre en chaîne, ou une clé oubliée. Rejeter la requête
+ * entière pour cela rendait les outils de lecture inutilisables (vécu :
+ * « read_leads renvoie systématiquement paramètres invalides »). On normalise
+ * donc, et une valeur inconnue retombe sur le filtre neutre au lieu d'annuler.
+ */
+
+/** Nombre accepté en number ou en chaîne ("12"), avec repli. */
+function toInt(value: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof value === 'number' ? value : Number(String(value ?? '').trim());
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(n)));
+}
+
+/** Traduit un statut écrit en français ou en anglais vers la valeur stockée. */
+function toStatus(value: unknown, map: Record<string, string>, fallback: string): string {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return fallback;
+  if (Object.prototype.hasOwnProperty.call(map, raw)) return map[raw] as string;
+  // valeur déjà correcte ?
+  return Object.values(map).includes(raw) ? raw : fallback;
+}
+
+const LEAD_STATUS: Record<string, string> = {
+  tous: 'tous',
+  all: 'tous',
+  nouvelle: 'new',
+  nouvelles: 'new',
+  new: 'new',
+  'en attente': 'new',
+  attente: 'new',
+  'en cours': 'in_progress',
+  in_progress: 'in_progress',
+  contacte: 'in_progress',
+  contactee: 'in_progress',
+  contacted: 'in_progress',
+  devis: 'quoted',
+  'devis envoye': 'quoted',
+  quoted: 'quoted',
+  gagnee: 'won',
+  gagne: 'won',
+  won: 'won',
+  perdue: 'lost',
+  perdu: 'lost',
+  lost: 'lost',
+};
+
+const PROJECT_STATUS: Record<string, string> = {
+  tous: 'tous',
+  all: 'tous',
+  planification: 'planning',
+  planning: 'planning',
+  'en cours': 'active',
+  active: 'active',
+  'en pause': 'paused',
+  paused: 'paused',
+  bloque: 'blocked',
+  bloquee: 'blocked',
+  blocked: 'blocked',
+  termine: 'done',
+  terminee: 'done',
+  done: 'done',
+  archive: 'archived',
+  archivee: 'archived',
+  archived: 'archived',
+};
+
+const TASK_STATUS: Record<string, string> = {
+  ouvertes: 'ouvertes',
+  ouvertes_seulement: 'ouvertes',
+  open: 'ouvertes',
+  a_faire: 'todo',
+  todo: 'todo',
+  'en cours': 'doing',
+  doing: 'doing',
+  revue: 'review',
+  review: 'review',
+  bloque: 'blocked',
+  bloquee: 'blocked',
+  blocked: 'blocked',
+  terminee: 'done',
+  termine: 'done',
+  done: 'done',
+  toutes: 'ouvertes',
+};
+
 export async function runReadTool(name: string, params: unknown): Promise<{ label: string; rows: unknown }> {
   if (!isReadToolName(name)) throw new AppError(422, 'UNKNOWN_TOOL', `Outil inconnu : ${name}`);
   const spec = READ_TOOLS[name];
   const parsed = spec.schema.safeParse(params ?? {});
   if (!parsed.success) {
-    throw new AppError(422, 'INVALID_PARAMS', `Paramètres invalides pour ${name}.`);
+    const issue = parsed.error.issues[0];
+    const champ = issue?.path.join('.') || 'paramètres';
+    throw new AppError(
+      422,
+      'INVALID_PARAMS',
+      `Paramètre refusé pour ${name} : « ${champ} » — ${issue?.message ?? 'valeur invalide'}.`,
+    );
   }
   const rows = await spec.run(parsed.data as Record<string, unknown>);
   return { label: spec.label, rows };

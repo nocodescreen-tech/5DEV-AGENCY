@@ -315,19 +315,12 @@
 }
 .anim-fill {
   height: 100%;
+  width: 100%;
   border-radius: inherit;
   transform-origin: left center;
-  animation: bar-grow 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
   will-change: transform;
 }
-@keyframes bar-grow {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
 
-.stagger-item {
-  animation: row-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
 
 .search-field {
   position: relative;
@@ -383,7 +376,6 @@
 .card-hover:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgb(23 23 23 / 0.05), 0 20px 40px -34px rgb(23 23 23 / 0.5); }
 
 @media (prefers-reduced-motion: reduce) {
-  .anim-fill, .stagger-item { animation: none !important; }
   .card-hover, .card-hover:hover { transform: none; }
 }
 
@@ -394,3 +386,65 @@
   to { transform: scaleY(1); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) { .chart-col { animation: none !important; } }
+
+/* --------------------------------------------------- finition (ECC make-interfaces-feel-better)
+ * Détails qui font qu'une console paraît finie : cibles de clic, anneau de focus,
+ * césure des titres, chiffres alignés. Rien d'inventé, uniquement du réglage.
+ */
+
+/* Une icône de 14 px n'est pas une cible : on garantit 40 px de zone cliquable. */
+.admin-nav a,
+.panel button.btn-ghost {
+  min-height: 2.25rem;
+}
+.icon-hit {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+}
+.icon-hit::after {
+  content: '';
+  position: absolute;
+  inset: -0.35rem;
+}
+
+/* Anneau de focus visible au clavier uniquement, jamais au clic souris. */
+:where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Titres courts : pas de mot orphelin sur la dernière ligne. */
+.panel h2,
+.panel h3,
+h1 {
+  text-wrap: balance;
+}
+.panel p,
+.panel li {
+  text-wrap: pretty;
+}
+
+/* Chiffres qui changent : largeur fixe, pas de tremblement. */
+.tabular-nums,
+.kpi-value,
+.anim-track + span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Carte de la console : ombre en deux couches, séparation par le bord. */
+.panel {
+  box-shadow: 0 1px 2px rgb(23 23 23 / 0.04), 0 10px 24px -22px rgb(23 23 23 / 0.35);
+}
+
+/* États pressés cohérents partout, sans mouvement exagéré. */
+button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+@media (prefers-reduced-motion: reduce) {
+  button:active:not(:disabled) { transform: none; }
+}

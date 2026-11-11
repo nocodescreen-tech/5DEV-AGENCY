@@ -87,7 +87,7 @@ function LanguageColor(lang: string | null) {
 export default function AdminGitHub() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'github'],
-    queryFn: () => apiGet<GitHubData>('/api/v1/admin/pages'),
+    queryFn: () => apiGet<GitHubData>('/api/v1/admin/github'),
   });
 
   const [query, setQuery] = useState('');

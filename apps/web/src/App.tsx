@@ -32,6 +32,10 @@ const AdminNewsletter = lazy(() => import('./pages/admin/AdminNewsletter'));
 const AdminAutomations = lazy(() => import('./pages/admin/AdminAutomations'));
 const AdminGitHub = lazy(() => import('./pages/admin/AdminGitHub'));
 const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminSecrets = lazy(() => import('./pages/admin/AdminSecrets'));
+const AdminDev = lazy(() => import('./pages/admin/AdminDev'));
+const AdminMarket = lazy(() => import('./pages/admin/AdminMarket'));
 const AdminWorkspace = lazy(() => import('./pages/admin/AdminWorkspace'));
 const AdminWorkspaceProjects = lazy(() => import('./pages/admin/AdminWorkspaceProjects'));
 const AdminClients = lazy(() => import('./pages/admin/AdminClients'));
@@ -107,6 +111,10 @@ export default function App() {
             <Route path="newsletter" element={<AdminNewsletter />} />
             <Route path="automatisations" element={<AdminAutomations />} />
             <Route path="analytique" element={<AdminAnalytics />} />
+            <Route path="utilisateurs" element={<AdminUsers />} />
+            <Route path="cles" element={<AdminSecrets />} />
+            <Route path="dev" element={<AdminDev />} />
+            <Route path="marche" element={<AdminMarket />} />
             <Route path="github" element={<AdminGitHub />} />
             <Route path="workspace" element={<AdminWorkspace />} />
             <Route path="clients" element={<AdminClients />} />

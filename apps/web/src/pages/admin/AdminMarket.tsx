@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowUpRight,
+
   BadgeCheck,
+  ChevronDown,
+  Code2,
   Clock,
   ExternalLink,
   Loader2,
   Plus,
   RefreshCw,
+  Sparkles,
   TriangleAlert,
 } from 'lucide-react';
 import { apiGet, apiPost } from '../../lib/api';
@@ -34,10 +37,23 @@ type Offer = {
   updated_at: string;
 };
 
+type PlatformDoc = {
+  provider: string;
+  provider_key: string;
+  doc_url: string;
+  sdk_node: string | null;
+  sdk_python: string | null;
+  snippet_node: string | null;
+  snippet_python: string | null;
+  api_style: string;
+  note: string;
+};
+
 type MarketData = {
   offers: Offer[];
   counts: { category: string; n: number }[];
   categories: string[];
+  docs: PlatformDoc[];
   last_checked: string | null;
   sources: string[];
 };
@@ -99,6 +115,24 @@ export default function AdminMarket() {
     onError: (e: Error) => toast.push('error', e.message),
   });
 
+  const scrape = useMutation({
+    mutationFn: () =>
+      apiPost<{ providers: number; written: number; rejected: number; failed: number }>(
+        '/api/v1/admin/market/scrape',
+        {},
+      ),
+    onSuccess: (r) => {
+      toast.push(
+        'success',
+        `${r.written} offre(s) mise(s) à jour sur ${r.providers} plateforme(s)` +
+          (r.rejected ? ` · ${r.rejected} prix rejeté(s) car absents de la page` : ''),
+      );
+      if (r.failed) toast.push('error', `${r.failed} page(s) illisible(s) — voir le détail`);
+      void qc.invalidateQueries({ queryKey: ['admin', 'market'] });
+    },
+    onError: (e: Error) => toast.push('error', e.message),
+  });
+
   const add = useMutation({
     mutationFn: () =>
       apiPost('/api/v1/admin/market', {
@@ -115,6 +149,7 @@ export default function AdminMarket() {
   });
 
   const offers = data?.offers ?? [];
+  const docsByProvider = new Map((data?.docs ?? []).map((d) => [d.provider_key, d]));
   const counts = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of data?.counts ?? []) map.set(c.category, c.n);
@@ -128,7 +163,16 @@ export default function AdminMarket() {
       (!q || `${o.provider} ${o.plan} ${o.specs}`.toLowerCase().includes(q)),
   );
 
-  const liveCount = offers.filter((o) => o.source_kind === 'api').length;
+  const liveCount = offers.filter((o) => o.source_kind !== 'manuel').length;
+
+  // Une carte par plateforme : c'est ainsi qu'on compare « qui propose quoi ».
+  const grouped = visible.reduce<Map<string, Offer[]>>((acc, o) => {
+    const list = acc.get(o.provider) ?? [];
+    list.push(o);
+    acc.set(o.provider, list);
+    return acc;
+  }, new Map());
+  const platforms = [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0], 'fr'));
 
   return (
     <div>
@@ -139,6 +183,10 @@ export default function AdminMarket() {
         actions={
           <>
             <SearchInput value={query} onChange={setQuery} placeholder="Filtrer un fournisseur…" />
+            <PressableButton className="btn-primary !py-2 text-xs" onClick={() => scrape.mutate()} disabled={scrape.isPending}>
+              {scrape.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+              Relever avec l’IA
+            </PressableButton>
             <PressableButton className="btn-ghost !py-2 text-xs" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
               {refresh.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
               Relever les prix
@@ -215,62 +263,131 @@ export default function AdminMarket() {
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-line">
-            {visible.map((o, i) => (
-              <Stagger as="li" key={o.id} index={i} step={30} className="px-5 py-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate font-medium">{o.provider}</p>
-                      <span className="rounded bg-muted/10 px-1.5 py-0.5 text-[10px] font-medium text-muted">
-                        {CATEGORY_FR[o.category]?.label ?? o.category}
-                      </span>
-                      {o.source_kind === 'api' ? (
-                        <span className="inline-flex items-center gap-1 rounded bg-emerald/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald">
-                          <BadgeCheck className="size-3" /> relevé automatique
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {platforms.map(([provider, list], i) => {
+              // « relevé » seulement si au moins un prix a réellement été lu.
+              const fromPage = list.some((o) => o.source_kind !== 'manuel' && o.price !== null);
+              const cheapest = list.reduce<Offer | null>(
+                (min, o) => (o.price !== null && (min === null || (min.price ?? Infinity) > o.price) ? o : min),
+                null,
+              );
+              return (
+                <Stagger key={provider} index={i} step={40} className="h-full">
+                  <article className="flex h-full min-w-0 flex-col rounded-xl border border-line bg-paper">
+                    <header className="flex items-start justify-between gap-2 border-b border-line px-4 py-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-semibold">{provider}</h3>
+                        <p className="mt-0.5 text-[11px] text-muted">
+                          {list.length} offre{list.length > 1 ? 's' : ''}
+                          {cheapest?.price != null ? ` · dès ${money(cheapest)}` : ''}
+                        </p>
+                      </div>
+                      {fromPage ? (
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 rounded bg-emerald/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald"
+                          title="Prix relevé sur la page tarifaire du fournisseur"
+                        >
+                          <BadgeCheck className="size-3" /> relevé
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded bg-orange/10 px-1.5 py-0.5 text-[10px] font-medium text-orange">
-                          <TriangleAlert className="size-3" /> indicatif
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 rounded bg-orange/10 px-1.5 py-0.5 text-[10px] font-medium text-orange"
+                          title="Offre enregistrée sans prix relevé : ouvrez le lien pour vérifier"
+                        >
+                          <TriangleAlert className="size-3" /> à vérifier
                         </span>
                       )}
-                    </div>
-                    <p className="mt-1 truncate text-xs text-muted">{o.plan}</p>
-                    {o.specs && <p className="mt-0.5 truncate text-[11px] text-muted">{o.specs}</p>}
-                  </div>
+                    </header>
 
-                  <div className="flex shrink-0 items-center gap-3">
-                    <div className="text-right">
-                      <p className="text-lg font-bold tabular-nums">{money(o)}</p>
-                      <p className="text-[10px] text-muted">{o.unit}</p>
-                      {o.delta !== null && (
-                        <p
-                          className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${
-                            o.delta > 0 ? 'text-red' : 'text-emerald'
-                          }`}
+                    {/* La zone défilante : toutes les offres de la plateforme. */}
+                    <ul className="max-h-56 flex-1 divide-y divide-line overflow-y-auto">
+                      {list.map((o) => (
+                        <li key={o.id} className="flex items-start justify-between gap-2 px-4 py-2.5">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium">{o.plan}</p>
+                            {o.specs && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{o.specs}</p>}
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm font-semibold tabular-nums">{money(o)}</p>
+                            <p className="text-[10px] text-muted">{o.unit}</p>
+                            {o.delta !== null && (
+                              <p
+                                className={`text-[10px] font-medium ${o.delta > 0 ? 'text-red' : 'text-emerald'}`}
+                                title="Écart depuis le relevé précédent"
+                              >
+                                {o.delta > 0 ? '+' : ''}
+                                {o.delta} %
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {(() => {
+                      const doc = docsByProvider.get(provider.toLowerCase());
+                      if (!doc) return null;
+                      return (
+                        <details className="group border-t border-line px-4 py-2">
+                          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[11px] font-medium text-muted hover:text-ink">
+                            <span className="inline-flex items-center gap-1">
+                              <Code2 className="size-3" /> Intégration ({doc.api_style})
+                            </span>
+                            <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
+                          </summary>
+                          <div className="mt-2 space-y-1.5">
+                            {doc.snippet_node && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-muted">Node / JS</p>
+                                <code className="block select-all break-all rounded bg-wash px-2 py-1 font-mono text-[11px]">
+                                  {doc.snippet_node}
+                                </code>
+                              </div>
+                            )}
+                            {doc.snippet_python && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-muted">Python</p>
+                                <code className="block select-all break-all rounded bg-wash px-2 py-1 font-mono text-[11px]">
+                                  {doc.snippet_python}
+                                </code>
+                              </div>
+                            )}
+                            {doc.note && <p className="text-[11px] leading-snug text-muted">{doc.note}</p>}
+                            {doc.doc_url && (
+                              <a
+                                href={doc.doc_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline"
+                              >
+                                documentation <ExternalLink className="size-3" />
+                              </a>
+                            )}
+                          </div>
+                        </details>
+                      );
+                    })()}
+
+                    <footer className="flex items-center justify-between gap-2 border-t border-line px-4 py-2">
+                      <span className="truncate text-[10px] text-muted">
+                        {list[0]?.checked_at ? `relevé le ${frDateTime(list[0].checked_at)}` : 'non relevé'}
+                      </span>
+                      {list[0]?.url && (
+                        <a
+                          href={list[0].url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex shrink-0 items-center gap-1 text-[11px] text-brand hover:underline"
                         >
-                          <ArrowUpRight className={`size-3 ${o.delta < 0 ? 'rotate-90' : ''}`} />
-                          {o.delta > 0 ? '+' : ''}
-                          {o.delta} % depuis le dernier relevé
-                        </p>
+                          tarifs <ExternalLink className="size-3" />
+                        </a>
                       )}
-                    </div>
-                    {o.url && (
-                      <a
-                        href={o.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-ghost !px-2 !py-1.5"
-                        aria-label={`Voir ${o.provider}`}
-                      >
-                        <ExternalLink className="size-3.5" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </Stagger>
-            ))}
-          </ul>
+                    </footer>
+                  </article>
+                </Stagger>
+              );
+            })}
+          </div>
         )}
       </section>
 

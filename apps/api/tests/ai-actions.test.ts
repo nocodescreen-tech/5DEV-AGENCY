@@ -37,7 +37,7 @@ describe('extractAction', () => {
 });
 
 describe('liste blanche', () => {
-  it('expose les trente-quatre actions attendues', () => {
+  it('expose les trente-sept actions attendues', () => {
     expect(Object.keys(ACTION_SPECS).sort()).toEqual([
       'automation_create',
       'automation_delete',
@@ -56,6 +56,9 @@ describe('liste blanche', () => {
       'lead_note',
       'lead_reply_email',
       'lead_set_status',
+      'market_add_platform',
+      'market_scrape',
+      'market_set_price',
       'milestone_create',
       'milestone_delete',
       'milestone_update',

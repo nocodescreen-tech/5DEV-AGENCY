@@ -15,7 +15,7 @@ create table if not exists market_offers (
   currency text not null default 'USD',
   unit text not null default '/mois',
   url text not null default '',
-  source_kind text not null default 'manuel' check (source_kind in ('api','manuel')),
+  source_kind text not null default 'manuel' check (source_kind in ('api','page','manuel')),
   source_ref text,
   prev_price numeric(12,2),
   checked_at timestamptz,

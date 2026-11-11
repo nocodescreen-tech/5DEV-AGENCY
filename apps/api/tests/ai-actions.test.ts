@@ -37,7 +37,7 @@ describe('extractAction', () => {
 });
 
 describe('liste blanche', () => {
-  it('expose les vingt-huit actions attendues', () => {
+  it('expose les trente-quatre actions attendues', () => {
     expect(Object.keys(ACTION_SPECS).sort()).toEqual([
       'automation_create',
       'automation_delete',
@@ -47,6 +47,12 @@ describe('liste blanche', () => {
       'client_delete',
       'client_update',
       'email_send',
+      'github_close_issue',
+      'github_comment_issue',
+      'github_create_issue',
+      'github_create_pr',
+      'github_merge_pr',
+      'github_trigger_workflow',
       'lead_note',
       'lead_reply_email',
       'lead_set_status',

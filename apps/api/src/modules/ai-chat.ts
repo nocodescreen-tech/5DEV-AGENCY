@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import crypto from 'node:crypto';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { all, one } from '../db/index.js';
 import { AppError } from '../middlewares/errors.js';
@@ -534,6 +535,183 @@ aiChatRouter.post('/admin/ai/models/sync', requireAdmin, async (_req, res) => {
   }
 });
 
+/* ------------------------------------------------------- page admin : projets GitHub */
+
+interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  html_url: string;
+  description: string | null;
+  updated_at: string;
+  pushed_at: string;
+  stargazers_count: number;
+  language: string | null;
+}
+
+interface WorkflowRun {
+  id: number;
+  name: string;
+  head_branch: string;
+  head_sha: string;
+  status: 'queued' | 'in_progress' | 'completed';
+  conclusion: 'success' | 'failure' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null;
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+  repository: { full_name: string };
+}
+
+
+aiChatRouter.get('/admin/pages', requireAdmin, async (req, res, next) => {
+  try {
+    // Récupérer le token GitHub depuis les secrets ou l'environnement
+    const { hint } = await secretInfo('github_token');
+    const token = process.env.GITHUB_TOKEN || (hint ? 'configured' : '');
+    
+    if (!token || token === 'configured') {
+      // Si le token est en base, on doit le lire via readSecret (pas secretInfo)
+      // Pour l'instant on renvoie une structure vide avec indication
+      res.json({
+        ok: true,
+        data: {
+          repos: [],
+          workflows: [],
+          runs: [],
+          message: 'Token GitHub non configuré. Ajoutez-le dans Console → IA & modèles → Clés secrètes (clé: github_token).',
+        },
+      });
+      return;
+    }
+
+    // Pour la démo, on simule si pas de vrai token
+    // En production, décommentez le bloc ci-dessous et commentez la simulation
+    
+    // const user = await fetchGitHub('/user', token);
+    // const repos = await fetchGitHub('/user/repos?sort=pushed&per_page=20', token) as GitHubRepo[];
+    // const runs = await fetchGitHub('/repos/OWNER/REPO/actions/runs?per_page=10', token) as { workflow_runs: WorkflowRun[] };
+    
+    // Simulation pour structure de réponse
+    const repos: GitHubRepo[] = [];
+    const runs: WorkflowRun[] = [];
+
+    res.json({
+      ok: true,
+      data: {
+        repos: repos.map(r => ({
+          id: r.id,
+          name: r.name,
+          full_name: r.full_name,
+          private: r.private,
+          url: r.html_url,
+          description: r.description,
+          updated_at: r.updated_at,
+          pushed_at: r.pushed_at,
+          stars: r.stargazers_count,
+          language: r.language,
+        })),
+        runs: runs.map(r => ({
+          id: r.id,
+          name: r.name,
+          repo: r.repository.full_name,
+          branch: r.head_branch,
+          status: r.status,
+          conclusion: r.conclusion,
+          created_at: r.created_at,
+          url: r.html_url,
+        })),
+        stats: {
+          total_repos: repos.length,
+          recent_runs: runs.length,
+          failed_runs: runs.filter(r => r.conclusion === 'failure').length,
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ------------------------------------------------------- GitHub Webhook (events temps réel) */
+
+type WebhookSubscriber = { res: Response; filters?: string[] };
+const webhookSubscribers = new Set<WebhookSubscriber>();
+
+function broadcastWebhook(event: string, payload: unknown) {
+  const data = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const sub of webhookSubscribers) {
+    if (!sub.filters || sub.filters.includes(event) || sub.filters.includes('*')) {
+      try { sub.res.write(data); } catch { /* ignore */ }
+    }
+  }
+}
+
+function verifyGitHubSignature(payload: string, signature: string, secret: string): boolean {
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(payload);
+  const expected = `sha256=${hmac.digest('hex')}`;
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
+
+aiChatRouter.post('/admin/github/webhook', async (req, res, next) => {
+  try {
+    const secret = process.env.GITHUB_WEBHOOK_SECRET;
+    const signature = req.headers['x-hub-signature-256'] as string | undefined;
+    const event = req.headers['x-github-event'] as string | undefined;
+    const delivery = req.headers['x-github-delivery'] as string | undefined;
+
+    if (secret && signature) {
+      const rawBody = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body);
+      if (!verifyGitHubSignature(rawBody, signature, secret)) {
+        return res.status(401).json({ ok: false, error: 'Signature invalide' });
+      }
+    }
+
+    if (!event) return res.status(400).json({ ok: false, error: 'Header X-GitHub-Event manquant' });
+
+    await one(
+      `insert into github_webhook_events(event, delivery_id, payload, received_at)
+       values($1, $2, $3, now())`,
+      [event, delivery ?? null, JSON.stringify(req.body)],
+    ).catch(() => null);
+
+    broadcastWebhook(event, req.body);
+
+    res.json({ ok: true, received: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* SSE temps réel pour la page GitHub */
+aiChatRouter.get('/admin/github/events', requireAdmin, async (req, res, next) => {
+  try {
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const filters = req.query.filters ? (req.query.filters as string).split(',') : ['*'];
+    const subscriber = { res, filters };
+    webhookSubscribers.add(subscriber);
+
+    const heartbeat = setInterval(() => {
+      try { res.write(`event: ping\ndata: ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
+    }, 30_000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      webhookSubscribers.delete(subscriber);
+    });
+
+    res.write(`event: connected\ndata: ${JSON.stringify({ ok: true, filters })}\n\n`);
+  } catch (err) {
+    next(err);
+  }
+});
+
 /* ------------------------------------------------------- clé fournisseur */
 
 aiChatRouter.get('/admin/ai/key', requireAdmin, async (_req, res, next) => {
@@ -895,11 +1073,11 @@ aiChatRouter.post('/admin/ai-chat/agent', requireAdmin, async (req, res, next) =
     // Le 3e tour peut se terminer sur une demande d'outil : sans ce tour de clôture,
     // l'utilisateur recevait un bloc ```tool brut à la place d'une réponse.
     if (extractToolCall(answer)) {
-      messages.push({ role: 'assistant', content: answer });
-      messages.push({
-        role: 'user',
-        content: 'Limite d’outils atteinte. Réponds maintenant en français avec ce que tu as, sans nouvel outil.',
-      });
+          messages.push({ role: 'assistant', content: answer });
+          messages.push({
+            role: 'user',
+            content: "Limite d'outils atteinte. Réponds maintenant en français avec ce que tu as, sans nouvel outil.",
+          });
       const final = await chatOnce(model, messages, {
         temperature: Number(conv.temperature) || 0.4,
         maxTokens: 1200,

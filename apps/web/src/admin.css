@@ -302,3 +302,95 @@
   .assistant-fab::after { animation: none; opacity: 0; }
   .assistant-panel { animation: none; }
 }
+
+/* ------------------------------------------------------------------ primitives animées
+ * Barres de progression, entrées en cascade, champ de recherche.
+ * Une seule définition pour toute la console : ne pas réécrire de keyframes par page.
+ */
+.anim-track {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 85%, transparent);
+}
+.anim-fill {
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left center;
+  animation: bar-grow 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
+}
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.stagger-item {
+  animation: row-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.search-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 11rem;
+  max-width: 100%;
+}
+@media (min-width: 640px) {
+  .search-field { min-width: 17rem; }
+}
+.search-field .search-icon {
+  position: absolute;
+  left: 0.65rem;
+  color: color-mix(in srgb, var(--ink) 35%, transparent);
+  pointer-events: none;
+  transition: color 180ms ease-out;
+}
+.search-field:focus-within .search-icon { color: var(--brand); }
+.search-input {
+  width: 100%;
+  padding: 0.42rem 1.9rem 0.42rem 2rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 0.78rem;
+  color: inherit;
+  transition: border-color 180ms ease-out, box-shadow 180ms ease-out, width 220ms ease-out;
+}
+.search-input::placeholder { color: color-mix(in srgb, var(--ink) 38%, transparent); }
+.search-input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.search-input::-webkit-search-cancel-button { display: none; }
+.search-clear {
+  position: absolute;
+  right: 0.4rem;
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  transition: color 160ms ease-out, background 160ms ease-out, transform 160ms ease-out;
+}
+.search-clear:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 16%, transparent); transform: scale(1.08); }
+
+/* survol d'une carte de la console : léger soulèvement, jamais un effet permanent */
+.card-hover { transition: transform 240ms cubic-bezier(0.22,1,0.36,1), box-shadow 240ms ease-out, border-color 240ms ease-out; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgb(23 23 23 / 0.05), 0 20px 40px -34px rgb(23 23 23 / 0.5); }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-fill, .stagger-item { animation: none !important; }
+  .card-hover, .card-hover:hover { transform: none; }
+}
+
+/* colonnes du graphique : poussent depuis la ligne de base */
+.chart-col { transform-origin: center bottom; animation: col-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes col-rise {
+  from { transform: scaleY(0); opacity: 0.25; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .chart-col { animation: none !important; } }

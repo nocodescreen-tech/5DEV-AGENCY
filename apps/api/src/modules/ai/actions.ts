@@ -3,6 +3,7 @@ import { all, one } from '../../db/index.js';
 import { AppError } from '../../middlewares/errors.js';
 import { sendEmail, emailLayout } from '../../lib/email.js';
 import { upsertClient } from '../workspace.js';
+import { readSecret } from '../../lib/secrets.js';
 
 /**
  * Actions que l'assistant peut PROPOSER. Aucune n'est exécutée par le modèle :
@@ -311,16 +312,88 @@ export const ACTION_SPECS = {
     sensitive: true,
   },
   email_send: {
-    label: 'Envoyer un email',
-    schema: z.object({
-      to: z.string().email(),
-      subject: z.string().min(2).max(180),
-      body: z.string().min(2).max(6000),
-    }),
-    describe: (p: Record<string, unknown>) => `Envoyer « ${p.subject} » à ${p.to}`,
-    sensitive: true,
-  },
-} as const;
+      label: 'Envoyer un email',
+      schema: z.object({
+        to: z.string().email(),
+        subject: z.string().min(2).max(180),
+        body: z.string().min(2).max(6000),
+      }),
+      describe: (p: Record<string, unknown>) => `Envoyer « ${p.subject} » à ${p.to}`,
+      sensitive: true,
+    },
+    github_create_issue: {
+      label: 'Créer une issue GitHub',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+        title: z.string().min(2).max(200),
+        body: z.string().max(10000).optional(),
+        labels: z.array(z.string().max(50)).max(10).optional(),
+        assignees: z.array(z.string().max(100)).max(5).optional(),
+      }),
+      describe: (p: Record<string, unknown>) => `Créer l'issue « ${p.title} » dans ${p.owner}/${p.repo}`,
+      sensitive: true,
+    },
+    github_comment_issue: {
+      label: 'Commenter une issue GitHub',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+        issue_number: z.number().int().positive(),
+        body: z.string().min(1).max(10000),
+      }),
+      describe: (p: Record<string, unknown>) => `Commenter l'issue #${p.issue_number} dans ${p.owner}/${p.repo}`,
+      sensitive: true,
+    },
+    github_close_issue: {
+      label: 'Fermer/rouvrir une issue GitHub',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+        issue_number: z.number().int().positive(),
+        state: z.enum(['open', 'closed']),
+      }),
+      describe: (p: Record<string, unknown>) => `${p.state === 'closed' ? 'Fermer' : 'Rouvrir'} l'issue #${p.issue_number} dans ${p.owner}/${p.repo}`,
+      sensitive: true,
+    },
+    github_trigger_workflow: {
+      label: 'Déclencher un workflow GitHub Actions',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+        workflow_id: z.string().min(1).max(100),
+        ref: z.string().max(100).default('main'),
+        inputs: z.record(z.string()).optional(),
+      }),
+      describe: (p: Record<string, unknown>) => `Déclencher le workflow ${p.workflow_id} sur ${p.owner}/${p.repo} (${p.ref})`,
+      sensitive: true,
+    },
+    github_create_pr: {
+      label: 'Créer une Pull Request GitHub',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+        title: z.string().min(2).max(200),
+        head: z.string().min(1).max(100),
+        base: z.string().min(1).max(100).default('main'),
+        body: z.string().max(10000).optional(),
+        draft: z.boolean().default(false),
+      }),
+      describe: (p: Record<string, unknown>) => `Créer la PR « ${p.title} » (${p.head} → ${p.base}) dans ${p.owner}/${p.repo}`,
+      sensitive: true,
+    },
+    github_merge_pr: {
+      label: 'Merger une Pull Request GitHub',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+        pr_number: z.number().int().positive(),
+        merge_method: z.enum(['merge', 'squash', 'rebase']).default('squash'),
+      }),
+      describe: (p: Record<string, unknown>) => `Merger la PR #${p.pr_number} dans ${p.owner}/${p.repo} (${p.merge_method})`,
+      sensitive: true,
+    },
+  } as const;
 
 /** ---------------------------------------------------------------- outils de lecture
  * Requêtes SELECT figées, paramétrées, bornées. Le modèle choisit un nom et des
@@ -411,18 +484,106 @@ export const READ_TOOLS = {
       ),
   },
   read_services: {
-    label: 'Lister le catalogue',
-    schema: z.object({}),
-    run: async () =>
-      all(
-        `select s.id, s.slug, s.title, s.is_published, s.price_note, s.duration_label, c.name as categorie
-           from services s
-           left join service_categories c on c.id = s.category_id
-          where s.is_published
-          order by c.position nulls last, s.position nulls last`,
-      ),
-  },
-} as const;
+      label: 'Lister le catalogue',
+      schema: z.object({}),
+      run: async () =>
+        all(
+          `select s.id, s.slug, s.title, s.is_published, s.price_note, s.duration_label, c.name as categorie
+             from services s
+             left join service_categories c on c.id = s.category_id
+            where s.is_published
+            order by c.position nulls last, s.position nulls last`,
+        ),
+    },
+    github_read_repos: {
+      label: 'Lister les repos GitHub',
+      schema: z.object({
+        owner: z.string().min(1).max(100).optional(),
+        per_page: z.number().int().min(1).max(50).default(20),
+      }),
+      run: async (p: Record<string, unknown>) => {
+        const token = await readSecret('github_token');
+        if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+        const owner = p.owner ? `/users/${p.owner}` : '/user';
+        const res = await fetch(`https://api.github.com${owner}/repos?sort=pushed&per_page=${Number(p.per_page ?? 20)}`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+        });
+        if (!res.ok) throw new AppError(res.status, 'GITHUB_API', 'Impossible de lister les repos');
+        return res.json();
+      },
+    },
+    github_read_issues: {
+      label: 'Lister les issues GitHub',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+        state: z.enum(['open', 'closed', 'all']).default('open'),
+        per_page: z.number().int().min(1).max(50).default(20),
+      }),
+      run: async (p: Record<string, unknown>) => {
+        const token = await readSecret('github_token');
+        if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+        const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/issues?state=${p.state}&per_page=${Number(p.per_page ?? 20)}&sort=updated`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+        });
+        if (!res.ok) throw new AppError(res.status, 'GITHUB_API', 'Impossible de lister les issues');
+        return res.json();
+      },
+    },
+    github_read_prs: {
+      label: 'Lister les Pull Requests GitHub',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+        state: z.enum(['open', 'closed', 'all']).default('open'),
+        per_page: z.number().int().min(1).max(50).default(20),
+      }),
+      run: async (p: Record<string, unknown>) => {
+        const token = await readSecret('github_token');
+        if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+        const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/pulls?state=${p.state}&per_page=${Number(p.per_page ?? 20)}&sort=updated`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+        });
+        if (!res.ok) throw new AppError(res.status, 'GITHUB_API', 'Impossible de lister les PRs');
+        return res.json();
+      },
+    },
+    github_read_workflows: {
+      label: 'Lister les workflows GitHub Actions',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+      }),
+      run: async (p: Record<string, unknown>) => {
+        const token = await readSecret('github_token');
+        if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+        const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/actions/workflows`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+        });
+        if (!res.ok) throw new AppError(res.status, 'GITHUB_API', 'Impossible de lister les workflows');
+        return res.json();
+      },
+    },
+    github_read_runs: {
+      label: 'Lister les runs de workflows',
+      schema: z.object({
+        owner: z.string().min(1).max(100),
+        repo: z.string().min(1).max(100),
+        workflow_id: z.string().optional(),
+        per_page: z.number().int().min(1).max(50).default(20),
+      }),
+      run: async (p: Record<string, unknown>) => {
+        const token = await readSecret('github_token');
+        if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+        const workflow = p.workflow_id ? `/${p.workflow_id}/runs` : '/runs';
+        const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/actions${workflow}?per_page=${Number(p.per_page ?? 20)}`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+        });
+        if (!res.ok) throw new AppError(res.status, 'GITHUB_API', 'Impossible de lister les runs');
+        return res.json();
+      },
+    },
+  } as const;
 
 export type ReadToolName = keyof typeof READ_TOOLS;
 
@@ -1210,21 +1371,102 @@ export async function executeAction(
     }
 
     case 'email_send': {
-      const p = params as { to: string; subject: string; body: string };
-      const res = await sendEmail({
-        to: p.to,
-        subject: p.subject,
-        html: emailLayout({ title: p.subject, body: `<p>${p.body.replace(/\n/g, '</p><p>')}</p>` }),
-        text: p.body,
-        context: 'assistant',
-      });
-      if (!res.ok) throw new AppError(502, 'EMAIL_FAILED', res.error ?? 'Envoi impossible.');
-      return { summary: `Email envoyé à ${p.to} (${res.provider}).` };
-    }
+          const p = params as { to: string; subject: string; body: string };
+          const res = await sendEmail({
+            to: p.to,
+            subject: p.subject,
+            html: emailLayout({ title: p.subject, body: `<p>${p.body.replace(/\n/g, '</p><p>')}</p>` }),
+            text: p.body,
+            context: 'assistant',
+          });
+          if (!res.ok) throw new AppError(502, 'EMAIL_FAILED', res.error ?? 'Envoi impossible.');
+          return { summary: `Email envoyé à ${p.to} (${res.provider}).` };
+        }
 
-    default:
-      throw new AppError(422, 'UNKNOWN_ACTION', 'Action non prise en charge.');
-  }
+        case 'github_create_issue': {
+          const p = params as { owner: string; repo: string; title: string; body?: string; labels?: string[]; assignees?: string[] };
+          const token = await readSecret('github_token');
+          if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+          const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/issues`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+            body: JSON.stringify({ title: p.title, body: p.body ?? '', labels: p.labels ?? [], assignees: p.assignees ?? [] }),
+          });
+          if (!res.ok) { const err = await res.json().catch(() => ({})) as { message?: string }; throw new AppError(res.status, 'GITHUB_API', err.message || 'Échec création issue'); }
+                    const issue = await res.json() as { number: number; title: string; html_url: string };
+          return { summary: `Issue #${issue.number} créée : ${issue.title}`, link: issue.html_url };
+        }
+
+        case 'github_comment_issue': {
+          const p = params as { owner: string; repo: string; issue_number: number; body: string };
+          const token = await readSecret('github_token');
+          if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+          const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/issues/${p.issue_number}/comments`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+            body: JSON.stringify({ body: p.body }),
+          });
+          if (!res.ok) { const err = await res.json().catch(() => ({})) as { message?: string }; throw new AppError(res.status, 'GITHUB_API', err.message || 'Échec commentaire'); }
+                    const comment = await res.json() as { html_url: string };
+          return { summary: `Commentaire ajouté à l'issue #${p.issue_number}`, link: comment.html_url };
+        }
+
+        case 'github_close_issue': {
+          const p = params as { owner: string; repo: string; issue_number: number; state: 'open' | 'closed' };
+          const token = await readSecret('github_token');
+          if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+          const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/issues/${p.issue_number}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+            body: JSON.stringify({ state: p.state }),
+          });
+          if (!res.ok) { const err = await res.json().catch(() => ({})) as { message?: string }; throw new AppError(res.status, 'GITHUB_API', err.message || 'Échec mise à jour'); }
+                    return { summary: `Issue #${p.issue_number} ${p.state === 'closed' ? 'fermée' : 'rouverte'}`, link: `https://github.com/${p.owner}/${p.repo}/issues/${p.issue_number}` };
+        }
+
+        case 'github_trigger_workflow': {
+          const p = params as { owner: string; repo: string; workflow_id: string; ref?: string; inputs?: Record<string, string> };
+          const token = await readSecret('github_token');
+          if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+          const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/actions/workflows/${p.workflow_id}/dispatches`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+            body: JSON.stringify({ ref: p.ref ?? 'main', inputs: p.inputs ?? {} }),
+          });
+          if (!res.ok && res.status !== 204) { const err = await res.json().catch(() => ({})) as { message?: string }; throw new AppError(res.status, 'GITHUB_API', err.message || 'Échec déclenchement workflow'); }
+                    return { summary: `Workflow ${p.workflow_id} déclenché sur ${p.owner}/${p.repo} (${p.ref ?? 'main'})`, link: `https://github.com/${p.owner}/${p.repo}/actions` };
+        }
+
+        case 'github_create_pr': {
+          const p = params as { owner: string; repo: string; title: string; head: string; base?: string; body?: string; draft?: boolean };
+          const token = await readSecret('github_token');
+          if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+          const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/pulls`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+            body: JSON.stringify({ title: p.title, head: p.head, base: p.base ?? 'main', body: p.body ?? '', draft: p.draft ?? false }),
+          });
+          if (!res.ok) { const err = await res.json().catch(() => ({})) as { message?: string }; throw new AppError(res.status, 'GITHUB_API', err.message || 'Échec création PR'); }
+                    const pr = await res.json() as { number: number; title: string; html_url: string };
+          return { summary: `PR #${pr.number} créée : ${pr.title}`, link: pr.html_url };
+        }
+
+        case 'github_merge_pr': {
+          const p = params as { owner: string; repo: string; pr_number: number; merge_method: 'merge' | 'squash' | 'rebase' };
+          const token = await readSecret('github_token');
+          if (!token) throw new AppError(409, 'NO_TOKEN', 'Token GitHub non configuré.');
+          const res = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/pulls/${p.pr_number}/merge`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+            body: JSON.stringify({ merge_method: p.merge_method }),
+          });
+          if (!res.ok) { const err = await res.json().catch(() => ({})) as { message?: string }; throw new AppError(res.status, 'GITHUB_API', err.message || 'Échec merge'); }
+                    return { summary: `PR #${p.pr_number} mergée (${p.merge_method})`, link: `https://github.com/${p.owner}/${p.repo}/pull/${p.pr_number}` };
+        }
+
+        default:
+          throw new AppError(422, 'UNKNOWN_ACTION', 'Action non prise en charge.');
+      }
 }
 
 /** Journal d'audit de l'action confirmée (qui, quoi, quand). */

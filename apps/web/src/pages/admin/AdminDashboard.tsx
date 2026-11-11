@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -16,6 +17,8 @@ import { Skeleton } from '../../components/ui';
 
 import { PageHeader } from '../../components/admin/PageHeader';
 import { KpiCard } from '../../components/admin/KpiCard';
+import { AnimatedBar, SearchInput, Stagger } from '../../components/admin/anim-ui';
+import { AnimatedCounter } from '../../components/motion/AnimatedCounter';
 type Dash = {
   kpis: {
     leads_total: number;
@@ -59,6 +62,12 @@ const STATUS_FR: Record<string, string> = {
 
 const TYPE_FR: Record<string, string> = { lead: 'Demande', booking: 'Réservation', project: 'Projet' };
 
+/** Le libellé français d'un statut, avec une majuscule initiale (« devis envoyé » → « Devis envoyé »). */
+const statusLabel = (s: string) => {
+  const t = STATUS_FR[s] ?? s;
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
 const hours = (m: number) => `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
 
 export default function AdminDashboard() {
@@ -67,6 +76,21 @@ export default function AdminDashboard() {
     queryFn: () => apiGet<Dash>('/api/v1/admin/dashboard'),
     refetchInterval: 60_000,
   });
+
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+
+  const tasksFiltered = useMemo(() => {
+    const rows = data?.tasksSoon ?? [];
+    if (!q) return rows;
+    return rows.filter((t) => `${t.title} ${t.project_name} ${t.priority}`.toLowerCase().includes(q));
+  }, [data, q]);
+
+  const activityFiltered = useMemo(() => {
+    const rows = data?.activity ?? [];
+    if (!q) return rows;
+    return rows.filter((a) => `${a.label} ${TYPE_FR[a.type] ?? a.type} ${statusLabel(a.status)}`.toLowerCase().includes(q));
+  }, [data, q]);
 
   if (isPending || !data) {
     return (
@@ -96,6 +120,7 @@ export default function AdminDashboard() {
         sub={`${today} · données de la base, actualisées toutes les minutes`}
         actions={
           <>
+            <SearchInput value={query} onChange={setQuery} placeholder="Rechercher une tâche, une activité…" />
             <Link to="/admin/ia/chat" className="btn-ghost !py-2 text-xs">
               <Sparkles className="size-3.5" /> Assistant IA
             </Link>
@@ -173,17 +198,21 @@ export default function AdminDashboard() {
               <span className="absolute -top-1 right-0 text-[9px] tabular-nums text-muted">{maxSeries}</span>
             </div>
             <div className="flex h-44 items-end gap-1.5">
-              {data.series.map((s) => (
-                <div key={s.jour} className="group relative flex flex-1 flex-col items-center gap-1">
-                  <div className="flex h-36 w-full items-end justify-center gap-[2px]">
+              {data.series.map((s, i) => (
+                <div key={s.jour} className="group relative flex h-full flex-1 flex-col items-center justify-end gap-1">
+                  <div className="flex h-full w-full items-end justify-center gap-[2px]">
                     <div
-                      className="chart-bar w-full max-w-[9px] rounded-t-[3px] bg-brand"
-                      style={{ height: `${Math.max(2, (s.demandes / maxSeries) * 100)}%` }}
+                      className="chart-col w-full max-w-[9px] rounded-t-[3px] bg-brand"
+                      style={{ height: `${Math.max(3, (s.demandes / maxSeries) * 100)}%`, animationDelay: `${i * 22}ms` }}
                       title={`${frDate(s.jour)} — ${s.demandes} demande(s)`}
                     />
                     <div
-                      className="chart-bar w-full max-w-[9px] rounded-t-[3px]"
-                      style={{ height: `${Math.max(2, (s.reservations / maxSeries) * 100)}%`, background: 'color-mix(in srgb, var(--ink) 26%, transparent)' }}
+                      className="chart-col w-full max-w-[9px] rounded-t-[3px]"
+                      style={{
+                        height: `${Math.max(3, (s.reservations / maxSeries) * 100)}%`,
+                        background: 'color-mix(in srgb, var(--ink) 26%, transparent)',
+                        animationDelay: `${i * 22 + 60}ms`,
+                      }}
                       title={`${frDate(s.jour)} — ${s.reservations} réservation(s)`}
                     />
                   </div>
@@ -195,11 +224,11 @@ export default function AdminDashboard() {
 
           <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-4 text-center">
             <div>
-              <p className="text-lg font-bold tabular-nums">{k.leads_week}</p>
+              <p className="text-lg font-bold tabular-nums"><AnimatedCounter value={k.leads_week} /></p>
               <p className="text-[10px] uppercase tracking-wider text-muted">demandes 7 j</p>
             </div>
             <div>
-              <p className="text-lg font-bold tabular-nums">{k.bookings_upcoming}</p>
+              <p className="text-lg font-bold tabular-nums"><AnimatedCounter value={k.bookings_upcoming} /></p>
               <p className="text-[10px] uppercase tracking-wider text-muted">séances à venir</p>
             </div>
             <div>
@@ -214,20 +243,20 @@ export default function AdminDashboard() {
             <h2 className="text-[0.95rem] font-semibold tracking-tight">Pipeline commercial</h2>
             <ul className="mt-3 space-y-2.5">
               {data.statuses.length === 0 && <li className="text-xs text-muted">Aucune demande.</li>}
-              {data.statuses.map((s) => {
+              {data.statuses.map((s, i) => {
                 const pct = k.leads_total ? Math.round((s.n / k.leads_total) * 100) : 0;
                 return (
-                  <li key={s.status}>
+                  <Stagger as="li" key={s.status} index={i} step={55}>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="capitalize">{STATUS_FR[s.status] ?? s.status}</span>
+                      <span>{statusLabel(s.status)}</span>
                       <span className="tabular-nums text-muted">
                         {s.n} · {pct} %
                       </span>
                     </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-line">
-                      <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+                    <div className="mt-1">
+                      <AnimatedBar value={pct} height={6} delay={i * 70} label={statusLabel(s.status)} />
                     </div>
-                  </li>
+                  </Stagger>
                 );
               })}
             </ul>
@@ -243,11 +272,11 @@ export default function AdminDashboard() {
                 { k: 'Services', v: data.catalog.services },
                 { k: 'Réalisations', v: data.catalog.projets },
                 { k: 'Modèles', v: data.catalog.modeles },
-              ].map((x) => (
-                <div key={x.k} className="rounded-xl bg-wash p-2.5">
-                  <dd className="text-lg font-bold tabular-nums">{x.v}</dd>
+              ].map((x, i) => (
+                <Stagger key={x.k} index={i} step={70} className="rounded-xl bg-wash p-2.5 card-hover">
+                  <dd className="text-lg font-bold tabular-nums"><AnimatedCounter value={x.v} /></dd>
                   <dt className="text-[10px] uppercase tracking-wider text-muted">{x.k}</dt>
-                </div>
+                </Stagger>
               ))}
             </dl>
             <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted">
@@ -266,14 +295,16 @@ export default function AdminDashboard() {
               toutes les tâches
             </Link>
           </div>
-          {data.tasksSoon.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-muted">Aucune tâche en attente. Rien ne traîne.</p>
+          {tasksFiltered.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-muted">
+              {q ? 'Aucune tâche ne correspond à la recherche.' : 'Aucune tâche en attente. Rien ne traîne.'}
+            </p>
           ) : (
             <ul className="divide-y divide-line">
-              {data.tasksSoon.map((t) => {
+              {tasksFiltered.map((t, i) => {
                 const late = t.due_date && new Date(t.due_date) < new Date();
                 return (
-                  <li key={t.id}>
+                  <Stagger as="li" key={t.id} index={i} step={45}>
                     <Link to={`/admin/projets/${t.project_id}`} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-wash">
                       <div className="min-w-0">
                         <p className="truncate text-sm">{t.title}</p>
@@ -286,7 +317,7 @@ export default function AdminDashboard() {
                         {t.priority === 'urgent' && <p className="text-[10px] uppercase tracking-wider text-brand">urgent</p>}
                       </div>
                     </Link>
-                  </li>
+                  </Stagger>
                 );
               })}
             </ul>
@@ -298,8 +329,8 @@ export default function AdminDashboard() {
             <h2 className="font-semibold">Dernières activités</h2>
           </div>
           <ul className="divide-y divide-line">
-            {data.activity.map((a) => (
-              <li key={`${a.type}-${a.id}`} className="flex items-center justify-between gap-3 px-5 py-2.5">
+            {activityFiltered.map((a, i) => (
+              <Stagger as="li" key={`${a.type}-${a.id}`} index={i} step={35} className="flex items-center justify-between gap-3 px-5 py-2.5">
                 <div className="min-w-0">
                   <p className="truncate text-sm">
                     <span className="text-[10px] uppercase tracking-wider text-muted">{TYPE_FR[a.type] ?? a.type}</span>{' '}
@@ -307,11 +338,15 @@ export default function AdminDashboard() {
                   </p>
                 </div>
                 <span className="shrink-0 text-[11px] text-muted">
-                  {STATUS_FR[a.status] ?? a.status} · {frDateTime(a.created_at)}
+                  {statusLabel(a.status)} · {frDateTime(a.created_at)}
                 </span>
-              </li>
+              </Stagger>
             ))}
-            {data.activity.length === 0 && <li className="px-5 py-6 text-sm text-muted">Aucune activité.</li>}
+            {activityFiltered.length === 0 && (
+              <li className="px-5 py-6 text-sm text-muted">
+                {q ? 'Aucune activité ne correspond à la recherche.' : 'Aucune activité.'}
+              </li>
+            )}
           </ul>
         </section>
       </div>

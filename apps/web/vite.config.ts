@@ -34,5 +34,20 @@ export default defineConfig({
       '/healthz': { target: 'http://127.0.0.1:4000', changeOrigin: true },
     },
   },
-  build: { outDir: 'dist', sourcemap: false },
+  // Le chunk principal dépassait 500 Ko : on isole les grosses dépendances.
+  // Elles changent rarement, donc le navigateur les garde en cache entre deux
+  // déploiements, et le code applicatif reste petit et rechargé seul.
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          motion: ['motion', 'motion/react'],
+          data: ['@tanstack/react-query'],
+        },
+      },
+    },
+  },
 });

@@ -36,6 +36,26 @@ function stripHtml(html: string): string {
 }
 
 /** Réduit la page à la zone qui contient des prix : le début d'une page tarifs est du marketing. */
+/**
+ * Les grilles tarifaires modernes vivent souvent dans un JSON embarqué
+ * (`__NEXT_DATA__`, JSON-LD, objet d'hydratation) que le nettoyage HTML jette.
+ * On récupère ces couples clé/valeur et on les ajoute au texte envoyé au
+ * modèle : c'est là que se trouvent les vrais prix, pas dans le marketing.
+ */
+function structuredHints(html: string): string {
+  const found = new Map<string, number>();
+  const re = /"(?:price|amount|monthly|monthlyPrice|monthly_cost|cost|prix|unit_amount)"\s*:\s*"?([0-9]+(?:\.[0-9]{1,2})?)"?/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const key = (m[0].split('"')[1] ?? '').toLowerCase();
+    const value = Number(m[1]);
+    if (!Number.isFinite(value) || value <= 0 || value > 100000) continue;
+    found.set(`${key}=${value}`, value);
+    if (found.size >= 40) break;
+  }
+  return [...found.keys()].join(', ');
+}
+
 function focusOnPrices(text: string, limit = 9000): string {
   const marks = ['€', '$', '/mois', '/month', 'per month', '/an', '/year', 'par mois'];
   const first = marks
@@ -120,7 +140,9 @@ Règles absolues :
 - N'invente jamais un prix, n'arrondis pas, ne convertis pas de devise.
 - Maximum 8 offres, les plus représentatives.
 - "unite" parmi : /mois, /an, /Go, /To, /1000 emails.
-- "devise" parmi : USD, EUR, CDF.`;
+- "devise" parmi : USD, EUR, CDF.
+- Un bloc « données structurées de la page » peut suivre le texte : ce sont des
+  prix lus dans le JSON du site, utilise-les en priorité.`;
 
 export type ScrapeReport = {
   provider: string;
@@ -147,7 +169,10 @@ async function scrapeProvider(url: string, provider: string): Promise<ScrapeRepo
     return { provider, url, offers: 0, rejected: 0, error: (err as Error).message.slice(0, 120) };
   }
 
-  const text = focusOnPrices(stripHtml(html));
+  const hints = structuredHints(html);
+  const text = focusOnPrices(stripHtml(html)) + (hints ? `
+
+[données structurées de la page : ${hints}]` : '');
   if (text.length < 200) return { provider, url, offers: 0, rejected: 0, error: 'page vide ou rendue en JavaScript' };
 
   let raw: string;
@@ -188,7 +213,7 @@ async function scrapeProvider(url: string, provider: string): Promise<ScrapeRepo
     }
 
     // LE contrôle qui compte : le prix doit exister dans la page.
-    if (price !== null && !priceIsInText(price, text)) {
+    if (price !== null && !priceIsInText(price, text) && !hints.includes(String(price))) {
       rejected += 1;
       continue;
     }

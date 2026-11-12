@@ -237,7 +237,49 @@ async function writeJsonPairs(src: PageSource, html: string): Promise<number> {
   return written;
 }
 
-const liveSources = [{ name: 'Vultr', run: fetchVultr }];
+/** Akamai Linode — `/v4/linode/types` est public (aucune clé), prix mensuels réels. */
+async function fetchLinode(): Promise<LiveOffer[]> {
+  const res = await fetch('https://api.linode.com/v4/linode/types?page_size=500', {
+    headers: { Accept: 'application/json', 'User-Agent': '5dev-console' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new AppError(502, 'PROVIDER', `Linode a répondu ${res.status}.`);
+
+  const body = (await res.json()) as {
+    data?: {
+      id: string;
+      label: string;
+      price: { monthly: number | null };
+      memory: number;
+      vcpus: number;
+      disk: number;
+      class?: string;
+    }[];
+  };
+
+  const out: LiveOffer[] = [];
+  for (const t of body.data ?? []) {
+    const monthly = Number(t.price?.monthly ?? 0);
+    if (!Number.isFinite(monthly) || monthly <= 0) continue;
+    out.push({
+      category: 'vps',
+      provider: 'Akamai Linode',
+      plan: `${t.label} · ${t.vcpus} vCPU · ${(t.memory / 1024).toFixed(1)} Go — ${t.id}`,
+      specs: `${t.disk} Go SSD${t.class ? ` · ${t.class}` : ''}`,
+      price: monthly,
+      currency: 'USD',
+      unit: '/mois',
+      url: 'https://www.linode.com/pricing/',
+      source_ref: t.id,
+    });
+  }
+  return out;
+}
+
+const liveSources = [
+  { name: 'Vultr', run: fetchVultr },
+  { name: 'Akamai Linode', run: fetchLinode },
+];
 
 /* ------------------------------------------------------------------- routes */
 

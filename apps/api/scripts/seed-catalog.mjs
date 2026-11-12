@@ -87,6 +87,18 @@ const CATALOG = [
   ['hebergement', 'Vercel', 'Hobby', 'Sites statiques et fonctions', '/mois', 'https://vercel.com/pricing'],
   ['hebergement', 'GitHub Pages', 'Public', '1 Go de site, domaine custom', '/mois', 'https://docs.github.com/pages'],
 
+  // ------------------------------------------------------------------ VPS (10)
+  ['vps', 'Vultr', 'Cloud compute', 'API publique, prix relevés automatiquement', '/mois', 'https://www.vultr.com/pricing/'],
+  ['vps', 'Akamai Linode', 'Shared CPU', 'API publique, prix relevés automatiquement', '/mois', 'https://www.linode.com/pricing/'],
+  ['vps', 'Hetzner Cloud', 'CX22', 'Allemagne/Finlande, meilleur rapport qualité-prix', '/mois', 'https://www.hetzner.com/cloud/'],
+  ['vps', 'DigitalOcean', 'Droplet Basic', 'Documentation de référence, 1 vCPU', '/mois', 'https://www.digitalocean.com/pricing/droplets'],
+  ['vps', 'Contabo', 'Cloud VPS S', 'Beaucoup de RAM, disques lents', '/mois', 'https://contabo.com/en/vps/'],
+  ['vps', 'OVH VPS', 'VPS-1', 'Datacenters européens et canadiens', '/mois', 'https://www.ovhcloud.com/fr/vps/'],
+  ['vps', 'Scaleway', 'DEV1-S', 'Paris, facturation horaire', '/mois', 'https://www.scaleway.com/en/pricing/virtual-instances/'],
+  ['vps', 'IONOS', 'VPS Linux XS', 'Offres promotionnelles fréquentes', '/mois', 'https://www.ionos.fr/serveurs/vps'],
+  ['vps', 'Hostinger VPS', 'KVM 1', 'Console hPanel, sauvegardes hebdo', '/mois', 'https://www.hostinger.com/vps-hosting'],
+  ['vps', 'Kamatera', '1 vCPU / 1 Go', 'Facturation à l’heure, 18 régions', '/mois', 'https://www.kamatera.com/pricing/'],
+
   // ------------------------------------------------------------------ PAAAS (10)
   ['paas', 'Railway', 'Hobby', 'Crédit inclus, facturation à l’usage', '/mois', 'https://railway.com/pricing'],
   ['paas', 'Render', 'Free web service', '750 h/mois, mise en veille', '/mois', 'https://render.com/pricing'],

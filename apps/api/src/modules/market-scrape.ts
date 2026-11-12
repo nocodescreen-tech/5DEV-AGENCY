@@ -86,7 +86,8 @@ function priceIsInText(value: number, text: string): boolean {
 
 type Extracted = {
   plan: string;
-  price: number | null;
+  price?: number | null;
+  prix?: number | null;
   unit?: string;
   currency?: string;
   unite?: string;
@@ -156,23 +157,31 @@ export type ScrapeReport = {
  * Lit la page d'un fournisseur et met à jour ses offres.
  * `url` vient de la base : aucune URL n'est construite depuis la requête HTTP.
  */
-async function scrapeProvider(url: string, provider: string): Promise<ScrapeReport> {
-  let html: string;
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml' },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) return { provider, url, offers: 0, rejected: 0, error: `HTTP ${res.status}` };
-    html = await res.text();
-  } catch (err) {
-    return { provider, url, offers: 0, rejected: 0, error: (err as Error).message.slice(0, 120) };
+async function scrapeProvider(url: string, provider: string, providedText?: string): Promise<ScrapeReport> {
+  let hints = '';
+  let text: string;
+
+  if (providedText) {
+    // Page deja rendue par un navigateur : les prix sont dans le texte visible.
+    text = focusOnPrices(providedText);
+  } else {
+    let html: string;
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml' },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!res.ok) return { provider, url, offers: 0, rejected: 0, error: `HTTP ${res.status}` };
+      html = await res.text();
+    } catch (err) {
+      return { provider, url, offers: 0, rejected: 0, error: (err as Error).message.slice(0, 120) };
+    }
+    hints = structuredHints(html);
+    text = focusOnPrices(stripHtml(html));
   }
+  if (hints) text += `
 
-  const hints = structuredHints(html);
-  const text = focusOnPrices(stripHtml(html)) + (hints ? `
-
-[données structurées de la page : ${hints}]` : '');
+[données structurées de la page : ${hints}]`;
   if (text.length < 200) return { provider, url, offers: 0, rejected: 0, error: 'page vide ou rendue en JavaScript' };
 
   let raw: string;
@@ -206,7 +215,10 @@ async function scrapeProvider(url: string, provider: string): Promise<ScrapeRepo
       continue;
     }
 
-    const price: number | null = o?.price === null || o?.price === undefined ? null : Number(o.price);
+    // Le prompt demande « prix » en français : lire les deux clés, sinon
+    // toute la grille est rejetée en silence (vécu : 364 rejets pour 0 offre).
+    const rawPrice = o?.price ?? o?.prix;
+    const price: number | null = rawPrice === null || rawPrice === undefined ? null : Number(rawPrice);
     if (price !== null && (!Number.isFinite(price) || price < 0 || price > 100000)) {
       rejected += 1;
       continue;
@@ -299,4 +311,17 @@ export async function scrapeOne(provider: string): Promise<ScrapeReport> {
   );
   if (!row) throw new AppError(404, 'NOT_FOUND', 'Plateforme inconnue ou sans page tarifaire.');
   return scrapeProvider(row.url, row.provider);
+}
+
+
+/**
+ * Entree utilisee par le rendu headless : le texte visible d'une page
+ * (innerText) contient les prix que le HTML statique n'a pas.
+ */
+export async function scrapeFromRenderedText(
+  provider: string,
+  url: string,
+  text: string,
+): Promise<ScrapeReport> {
+  return scrapeProvider(url, provider, text);
 }

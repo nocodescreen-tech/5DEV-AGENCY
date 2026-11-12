@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
 
   BadgeCheck,
+  Download,
+  Monitor,
   ChevronDown,
   Code2,
   Clock,
@@ -133,6 +135,42 @@ export default function AdminMarket() {
     onError: (e: Error) => toast.push('error', e.message),
   });
 
+  const render = useMutation({
+    mutationFn: () =>
+      apiPost<{ rendered: number; priced: number; alerts: number; failed: number }>(
+        '/api/v1/admin/market/render',
+        { limit: 10 },
+      ),
+    onSuccess: (r) => {
+      toast.push(
+        'success',
+        `${r.rendered} page(s) rendue(s) · ${r.priced} prix écrit(s)` +
+          (r.alerts ? ` · ${r.alerts} alerte(s)` : ''),
+      );
+      if (r.failed) toast.push('error', `${r.failed} page(s) n'ont pas répondu`);
+      void qc.invalidateQueries({ queryKey: ['admin', 'market'] });
+    },
+    onError: (e: Error) => toast.push('error', e.message),
+  });
+
+  /** Le CSV est protégé par le cookie de session : on le récupère puis on l'enregistre. */
+  async function downloadCsv() {
+    try {
+      const res = await fetch('/api/v1/admin/market/export.csv', { credentials: 'include' });
+      if (!res.ok) throw new Error(`Export refusé (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `5dev-prix-marche-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.push('success', 'Export CSV enregistré');
+    } catch (e) {
+      toast.push('error', (e as Error).message);
+    }
+  }
+
   const add = useMutation({
     mutationFn: () =>
       apiPost('/api/v1/admin/market', {
@@ -186,6 +224,18 @@ export default function AdminMarket() {
             <PressableButton className="btn-primary !py-2 text-xs" onClick={() => scrape.mutate()} disabled={scrape.isPending}>
               {scrape.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
               Relever avec l’IA
+            </PressableButton>
+            <PressableButton
+              className="btn-ghost !py-2 text-xs"
+              onClick={() => render.mutate()}
+              disabled={render.isPending}
+              title="Rend les pages en JavaScript avec le navigateur de la machine"
+            >
+              {render.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Monitor className="size-3.5" />}
+              Rendre les pages JS
+            </PressableButton>
+            <PressableButton className="btn-ghost !py-2 text-xs" onClick={() => void downloadCsv()} title="Exporter en CSV">
+              <Download className="size-3.5" /> CSV
             </PressableButton>
             <PressableButton className="btn-ghost !py-2 text-xs" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
               {refresh.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}

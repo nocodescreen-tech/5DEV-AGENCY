@@ -107,7 +107,7 @@ async function fetchVultr(): Promise<LiveOffer[]> {
  * c'est une lecture datée, et la page 5DEV affiche le lien officiel.
  */
 
-type PageSource = {
+export type PageSource = {
   category: (typeof CATEGORIES)[number];
   provider: string;
   plan: string;
@@ -192,7 +192,7 @@ function pairsFromJson(html: string): { plan: string; price: number; currency: s
 }
 
 /** Écrit les paires trouvées dans le JSON de la page. */
-async function writeJsonPairs(src: PageSource, html: string): Promise<number> {
+export async function writeJsonPairs(src: PageSource, html: string): Promise<number> {
   const pairs = pairsFromJson(html);
   let written = 0;
 
@@ -526,7 +526,8 @@ marketRouter.post('/admin/market/refresh', requireAdmin, async (_req, res, next)
       error: pageKo ? `${pageKo} page(s) illisible(s)` : undefined,
     });
 
-    res.json({ ok: true, data: { report } });
+    const alerts = await notifyPriceChanges();
+    res.json({ ok: true, data: { report, alerts } });
   } catch (err) {
     next(err);
   }
@@ -623,6 +624,122 @@ marketRouter.post('/admin/market', requireAdmin, async (req, res, next) => {
   }
 });
 
+
+/* --------------------------------------------------- alertes de variation
+ * La table `market_price_history` garde la trace ; ici on prévient l'humain.
+ * Deux règles apprises sur ce projet : une notification doit cibler un
+ * `user_id` (sinon elle n'apparaît jamais dans la cloche), et elle ne doit pas
+ * être recréée à chaque relevé — on déduplique sur le titre et la dernière 24 h.
+ */
+async function notifyPriceChanges(): Promise<number> {
+  const changes = await all<{
+    provider: string;
+    plan: string;
+    price: string | null;
+    prev_price: string | null;
+    currency: string;
+  }>(
+    `select provider, plan, price, prev_price, currency
+       from market_offers
+      where prev_price is not null
+        and price is not null
+        and price is distinct from prev_price
+        and updated_at > now() - interval '15 minutes'
+      order by updated_at desc
+      limit 20`,
+  );
+
+  let sent = 0;
+  for (const c of changes) {
+    const title = `Prix modifié : ${c.provider}`;
+    const body = `${c.plan} — ${c.prev_price} → ${c.price} ${c.currency}`;
+
+    const already = await one<{ id: string }>(
+      `select id from notifications
+        where title = $1 and body = $2 and created_at > now() - interval '24 hours'
+        limit 1`,
+      [title, body],
+    );
+    if (already) continue;
+
+    await one(
+      `insert into notifications(user_id, kind, title, body, link)
+       select u.id, 'info', $1, $2, '/admin/marche' from users u where u.is_active`,
+      [title, body],
+    ).catch(() => null);
+    sent += 1;
+  }
+  return sent;
+}
+
+/* ------------------------------------------------------------- export CSV */
+
+marketRouter.get('/admin/market/export.csv', requireAdmin, async (_req, res, next) => {
+  try {
+    const rows = await all<{
+      category: string;
+      provider: string;
+      plan: string;
+      specs: string;
+      price: string | null;
+      currency: string;
+      unit: string;
+      source_kind: string;
+      checked_at: string | null;
+      url: string;
+    }>(
+      `select category, provider, plan, specs, price, currency, unit, source_kind, checked_at, url
+         from market_offers
+        order by category, provider, price nulls last`,
+    );
+
+    // Séparateur « ; » et BOM : Excel en français ouvre le fichier correctement,
+    // accents compris, sans assistant d'importation.
+    const esc = (v: unknown) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ['categorie', 'plateforme', 'offre', 'details', 'prix', 'devise', 'unite', 'source', 'releve_le', 'page'];
+    const lines = [
+      header.join(';'),
+      ...rows.map((r) =>
+        [r.category, r.provider, r.plan, r.specs, r.price ?? '', r.currency, r.unit, r.source_kind, r.checked_at ? new Date(r.checked_at).toISOString().slice(0, 19).replace('T', ' ') : '', r.url]
+          .map(esc)
+          .join(';'),
+      ),
+    ];
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="5dev-prix-marche-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(`\uFEFF${lines.join('\r\n')}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ------------------------------------------------ rendu des pages JavaScript */
+
+marketRouter.post('/admin/market/render', requireAdmin, async (req, res, next) => {
+  try {
+    const limit = Number((req.body as { limit?: number } | undefined)?.limit ?? 12);
+    const { renderMissing } = await import('./market-render.js');
+    const reports = await renderMissing(Number.isFinite(limit) ? Math.min(30, Math.max(1, limit)) : 12);
+    const priced = reports.reduce((n, r) => n + r.priced, 0);
+    const alerts = await notifyPriceChanges();
+    res.json({
+      ok: true,
+      data: {
+        rendered: reports.length,
+        priced,
+        alerts,
+        failed: reports.filter((r) => r.error).length,
+        reports,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /* ------------------------------------------------ relevé assisté par l'IA
  * L'IA lit la page tarifaire et propose des offres ; chaque prix doit ensuite
